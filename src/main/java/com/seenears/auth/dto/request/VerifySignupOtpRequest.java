@@ -1,0 +1,9 @@
+package com.seenears.auth.dto.request;
+
+import jakarta.validation.constraints.NotBlank;
+
+public record VerifySignupOtpRequest(
+        @NotBlank String phoneNumber,
+        @NotBlank String otpCode
+) {
+}
