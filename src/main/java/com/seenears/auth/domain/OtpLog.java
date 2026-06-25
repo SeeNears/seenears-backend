@@ -96,4 +96,13 @@ public class OtpLog {
     public LocalDateTime getCreatedAt() {
         return createdAt;
     }
+
+    public void markVerified(LocalDateTime verifiedAt) {
+        this.status = OtpStatus.VERIFIED;
+        this.verifiedAt = verifiedAt;
+    }
+
+    public void markExpired() {
+        this.status = OtpStatus.EXPIRED;
+    }
 }
