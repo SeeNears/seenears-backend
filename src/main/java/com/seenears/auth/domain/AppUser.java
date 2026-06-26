@@ -110,4 +110,8 @@ public class AppUser {
     public LocalDateTime getUpdatedAt() {
         return updatedAt;
     }
+
+    public void updateLastLoginAt(LocalDateTime lastLoginAt) {
+        this.lastLoginAt = lastLoginAt;
+    }
 }

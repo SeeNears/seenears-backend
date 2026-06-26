@@ -1,9 +1,16 @@
 package com.seenears.auth.dto.request;
 
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Pattern;
+import jakarta.validation.constraints.Size;
 
 public record SignupRequest(
-        @NotBlank String name,
-        @NotBlank String phoneNumber
+        @NotBlank
+        @Size(max = 20)
+        String name,
+
+        @NotBlank
+        @Pattern(regexp = "^01[016789]\\d{7,8}$")
+        String phoneNumber
 ) {
 }

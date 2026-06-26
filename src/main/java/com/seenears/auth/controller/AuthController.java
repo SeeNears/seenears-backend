@@ -1,7 +1,9 @@
 package com.seenears.auth.controller;
 
+import com.seenears.auth.dto.request.SignupRequest;
 import com.seenears.auth.dto.request.SignupOtpRequest;
 import com.seenears.auth.dto.request.VerifySignupOtpRequest;
+import com.seenears.auth.dto.response.AuthTokenResponse;
 import com.seenears.auth.dto.response.OtpSendResponse;
 import com.seenears.auth.dto.response.OtpVerifyResponse;
 import com.seenears.auth.service.AuthService;
@@ -30,5 +32,10 @@ public class AuthController {
     @PostMapping("/signup/otp/verify")
     public ApiResponse<OtpVerifyResponse> verifySignupOtp(@Valid @RequestBody VerifySignupOtpRequest request) {
         return ApiResponse.success("휴대폰 인증이 완료되었습니다.", authService.verifySignupOtp(request));
+    }
+
+    @PostMapping("/signup")
+    public ApiResponse<AuthTokenResponse> signup(@Valid @RequestBody SignupRequest request) {
+        return ApiResponse.success("회원가입이 완료되었습니다.", authService.signup(request));
     }
 }
