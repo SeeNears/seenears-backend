@@ -6,6 +6,8 @@ import com.seenears.auth.domain.OtpPurpose;
 import com.seenears.auth.domain.OtpStatus;
 import com.seenears.auth.domain.RefreshToken;
 import com.seenears.auth.domain.UserStatus;
+import com.seenears.auth.dto.request.LoginOtpRequest;
+import com.seenears.auth.dto.request.LoginOtpVerifyRequest;
 import com.seenears.auth.dto.request.SignupOtpRequest;
 import com.seenears.auth.dto.request.SignupRequest;
 import com.seenears.auth.dto.request.VerifySignupOtpRequest;
@@ -31,8 +33,8 @@ public class AuthService {
 
     private static final int OTP_EXPIRES_IN_SECONDS = 180;
     private static final int OTP_BOUND = 1_000_000;
-    private static final int SIGNUP_OTP_MAX_REQUESTS_PER_MINUTE = 3;
-    private static final int SIGNUP_OTP_MAX_REQUESTS_PER_DAY = 10;
+    private static final int OTP_MAX_REQUESTS_PER_MINUTE = 3;
+    private static final int OTP_MAX_REQUESTS_PER_DAY = 10;
 
     private final AppUserRepository appUserRepository;
     private final OtpLogRepository otpLogRepository;
@@ -68,7 +70,7 @@ public class AuthService {
         }
 
         LocalDateTime now = LocalDateTime.now();
-        validateSignupOtpRateLimit(request.phoneNumber(), now);
+        validateOtpRateLimit(request.phoneNumber(), OtpPurpose.SIGNUP, now);
 
         otpLogRepository.expirePendingByPhoneNumberAndPurpose(
                 request.phoneNumber(),
@@ -82,6 +84,37 @@ public class AuthService {
                 request.phoneNumber(),
                 otpCode,
                 OtpPurpose.SIGNUP,
+                OtpStatus.PENDING,
+                now.plusSeconds(OTP_EXPIRES_IN_SECONDS)
+        );
+
+        otpLogRepository.save(otpLog);
+        smsSender.sendOtp(request.phoneNumber(), otpCode);
+
+        return new OtpSendResponse(request.phoneNumber(), OTP_EXPIRES_IN_SECONDS);
+    }
+
+    @Transactional
+    public OtpSendResponse sendLoginOtp(LoginOtpRequest request) {
+        AppUser appUser = appUserRepository.findByPhoneNumber(request.phoneNumber())
+                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+        validateLoginUserStatus(appUser);
+
+        LocalDateTime now = LocalDateTime.now();
+        validateOtpRateLimit(request.phoneNumber(), OtpPurpose.LOGIN, now);
+
+        otpLogRepository.expirePendingByPhoneNumberAndPurpose(
+                request.phoneNumber(),
+                OtpPurpose.LOGIN,
+                OtpStatus.PENDING,
+                OtpStatus.EXPIRED
+        );
+
+        String otpCode = generateOtpCode();
+        OtpLog otpLog = new OtpLog(
+                request.phoneNumber(),
+                otpCode,
+                OtpPurpose.LOGIN,
                 OtpStatus.PENDING,
                 now.plusSeconds(OTP_EXPIRES_IN_SECONDS)
         );
@@ -117,6 +150,35 @@ public class AuthService {
     }
 
     @Transactional
+    public AuthTokenResponse verifyLoginOtp(LoginOtpVerifyRequest request) {
+        OtpLog otpLog = otpLogRepository.findFirstByPhoneNumberAndPurposeAndStatusOrderByCreatedAtDesc(
+                        request.phoneNumber(),
+                        OtpPurpose.LOGIN,
+                        OtpStatus.PENDING
+                )
+                .orElseThrow(() -> new BusinessException(ErrorCode.OTP_NOT_FOUND));
+
+        LocalDateTime now = LocalDateTime.now();
+        if (otpLog.getExpiresAt().isBefore(now) || otpLog.getExpiresAt().isEqual(now)) {
+            otpLogStatusService.expireOtp(otpLog.getId());
+            throw new BusinessException(ErrorCode.OTP_EXPIRED);
+        }
+
+        if (!otpLog.getOtpCode().equals(request.otpCode())) {
+            throw new BusinessException(ErrorCode.OTP_INVALID);
+        }
+
+        AppUser appUser = appUserRepository.findByPhoneNumber(request.phoneNumber())
+                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+        validateLoginUserStatus(appUser);
+
+        otpLog.markVerified(now);
+        appUser.updateLastLoginAt(now);
+
+        return issueAuthTokens(appUser, now);
+    }
+
+    @Transactional
     public AuthTokenResponse signup(SignupRequest request) {
         if (appUserRepository.existsByPhoneNumber(request.phoneNumber())) {
             throw new BusinessException(ErrorCode.USER_ALREADY_EXISTS);
@@ -139,19 +201,23 @@ public class AuthService {
         appUser.updateLastLoginAt(now);
         AppUser savedAppUser = appUserRepository.save(appUser);
 
-        String subject = String.valueOf(savedAppUser.getId());
+        return issueAuthTokens(savedAppUser, now);
+    }
+
+    private AuthTokenResponse issueAuthTokens(AppUser appUser, LocalDateTime now) {
+        String subject = String.valueOf(appUser.getId());
         String accessToken = jwtTokenProvider.createAccessToken(subject);
         String refreshToken = jwtTokenProvider.createRefreshToken(subject);
         refreshTokenRepository.save(new RefreshToken(
-                savedAppUser,
+                appUser,
                 refreshToken,
                 now.plus(jwtProperties.refreshTokenExpiration())
         ));
 
         return new AuthTokenResponse(
-                savedAppUser.getId(),
-                savedAppUser.getName(),
-                savedAppUser.getPhoneNumber(),
+                appUser.getId(),
+                appUser.getName(),
+                appUser.getPhoneNumber(),
                 accessToken,
                 refreshToken
         );
@@ -161,23 +227,32 @@ public class AuthService {
         return String.format("%06d", secureRandom.nextInt(OTP_BOUND));
     }
 
-    private void validateSignupOtpRateLimit(String phoneNumber, LocalDateTime now) {
+    private void validateOtpRateLimit(String phoneNumber, OtpPurpose purpose, LocalDateTime now) {
         long requestsInLastMinute = otpLogRepository.countByPhoneNumberAndPurposeAndCreatedAtAfter(
                 phoneNumber,
-                OtpPurpose.SIGNUP,
+                purpose,
                 now.minusMinutes(1)
         );
-        if (requestsInLastMinute >= SIGNUP_OTP_MAX_REQUESTS_PER_MINUTE) {
+        if (requestsInLastMinute >= OTP_MAX_REQUESTS_PER_MINUTE) {
             throw new BusinessException(ErrorCode.OTP_RATE_LIMIT_EXCEEDED);
         }
 
         long requestsInLastDay = otpLogRepository.countByPhoneNumberAndPurposeAndCreatedAtAfter(
                 phoneNumber,
-                OtpPurpose.SIGNUP,
+                purpose,
                 now.minusDays(1)
         );
-        if (requestsInLastDay >= SIGNUP_OTP_MAX_REQUESTS_PER_DAY) {
+        if (requestsInLastDay >= OTP_MAX_REQUESTS_PER_DAY) {
             throw new BusinessException(ErrorCode.OTP_RATE_LIMIT_EXCEEDED);
+        }
+    }
+
+    private void validateLoginUserStatus(AppUser appUser) {
+        if (appUser.getStatus() == UserStatus.WITHDRAW_REQUESTED) {
+            throw new BusinessException(ErrorCode.USER_WITHDRAW_REQUESTED);
+        }
+        if (appUser.getStatus() != UserStatus.ACTIVE) {
+            throw new BusinessException(ErrorCode.USER_NOT_FOUND);
         }
     }
 }
