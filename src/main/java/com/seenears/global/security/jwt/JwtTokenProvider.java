@@ -53,6 +53,14 @@ public class JwtTokenProvider {
         }
     }
 
+    public String getRefreshTokenSubject(String refreshToken) {
+        Claims claims = parseClaims(refreshToken);
+        if (!REFRESH_TOKEN_TYPE.equals(claims.get(TOKEN_TYPE_CLAIM, String.class))) {
+            throw new IllegalArgumentException("tokenType must be refresh");
+        }
+        return claims.getSubject();
+    }
+
     public Authentication getAuthentication(String accessToken) {
         String subject = parseClaims(accessToken).getSubject();
         return UsernamePasswordAuthenticationToken.authenticated(subject, null, List.of());
