@@ -15,7 +15,10 @@ public enum ErrorCode {
     OTP_RATE_LIMIT_EXCEEDED(HttpStatus.TOO_MANY_REQUESTS, "AUTH_007", "인증번호 요청 횟수를 초과했습니다."),
     OTP_NOT_VERIFIED(HttpStatus.BAD_REQUEST, "AUTH_008", "휴대폰 인증이 완료되지 않았습니다."),
     USER_NOT_FOUND(HttpStatus.NOT_FOUND, "AUTH_009", "가입된 사용자를 찾을 수 없습니다."),
-    USER_WITHDRAW_REQUESTED(HttpStatus.FORBIDDEN, "AUTH_010", "탈퇴 요청된 사용자입니다.");
+    USER_WITHDRAW_REQUESTED(HttpStatus.FORBIDDEN, "AUTH_010", "탈퇴 요청된 사용자입니다."),
+    INVALID_REFRESH_TOKEN(HttpStatus.BAD_REQUEST, "AUTH_011", "Refresh Token이 올바르지 않습니다."),
+    REFRESH_TOKEN_EXPIRED(HttpStatus.UNAUTHORIZED, "AUTH_012", "Refresh Token이 만료되었습니다."),
+    REFRESH_TOKEN_NOT_FOUND(HttpStatus.UNAUTHORIZED, "AUTH_013", "유효한 Refresh Token을 찾을 수 없습니다.");
 
     private final HttpStatus httpStatus;
     private final String code;

@@ -4,10 +4,12 @@ import com.seenears.auth.dto.request.LoginOtpRequest;
 import com.seenears.auth.dto.request.LoginOtpVerifyRequest;
 import com.seenears.auth.dto.request.SignupRequest;
 import com.seenears.auth.dto.request.SignupOtpRequest;
+import com.seenears.auth.dto.request.TokenRefreshRequest;
 import com.seenears.auth.dto.request.VerifySignupOtpRequest;
 import com.seenears.auth.dto.response.AuthTokenResponse;
 import com.seenears.auth.dto.response.OtpSendResponse;
 import com.seenears.auth.dto.response.OtpVerifyResponse;
+import com.seenears.auth.dto.response.TokenRefreshResponse;
 import com.seenears.auth.service.AuthService;
 import com.seenears.global.response.ApiResponse;
 import jakarta.validation.Valid;
@@ -49,5 +51,10 @@ public class AuthController {
     @PostMapping("/signup")
     public ApiResponse<AuthTokenResponse> signup(@Valid @RequestBody SignupRequest request) {
         return ApiResponse.success("회원가입이 완료되었습니다.", authService.signup(request));
+    }
+
+    @PostMapping("/token/refresh")
+    public ApiResponse<TokenRefreshResponse> refreshToken(@Valid @RequestBody TokenRefreshRequest request) {
+        return ApiResponse.success("토큰이 재발급되었습니다.", authService.refreshToken(request));
     }
 }

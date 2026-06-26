@@ -10,10 +10,12 @@ import com.seenears.auth.dto.request.LoginOtpRequest;
 import com.seenears.auth.dto.request.LoginOtpVerifyRequest;
 import com.seenears.auth.dto.request.SignupOtpRequest;
 import com.seenears.auth.dto.request.SignupRequest;
+import com.seenears.auth.dto.request.TokenRefreshRequest;
 import com.seenears.auth.dto.request.VerifySignupOtpRequest;
 import com.seenears.auth.dto.response.AuthTokenResponse;
 import com.seenears.auth.dto.response.OtpSendResponse;
 import com.seenears.auth.dto.response.OtpVerifyResponse;
+import com.seenears.auth.dto.response.TokenRefreshResponse;
 import com.seenears.auth.repository.AppUserRepository;
 import com.seenears.auth.repository.OtpLogRepository;
 import com.seenears.auth.repository.RefreshTokenRepository;
@@ -22,6 +24,7 @@ import com.seenears.global.exception.BusinessException;
 import com.seenears.global.exception.ErrorCode;
 import com.seenears.global.security.jwt.JwtProperties;
 import com.seenears.global.security.jwt.JwtTokenProvider;
+import io.jsonwebtoken.ExpiredJwtException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -204,6 +207,47 @@ public class AuthService {
         return issueAuthTokens(savedAppUser, now);
     }
 
+    @Transactional
+    public TokenRefreshResponse refreshToken(TokenRefreshRequest request) {
+        if (request == null || request.refreshToken() == null || request.refreshToken().isBlank()) {
+            throw new BusinessException(ErrorCode.INVALID_REFRESH_TOKEN);
+        }
+
+        String currentRefreshToken = request.refreshToken().trim();
+        String subject = extractRefreshTokenSubject(currentRefreshToken);
+        Long userId = parseUserId(subject);
+
+        RefreshToken savedRefreshToken = refreshTokenRepository.findByToken(currentRefreshToken)
+                .orElseThrow(() -> new BusinessException(ErrorCode.REFRESH_TOKEN_NOT_FOUND));
+
+        LocalDateTime now = LocalDateTime.now();
+        if (savedRefreshToken.getExpiresAt().isBefore(now) || savedRefreshToken.getExpiresAt().isEqual(now)) {
+            refreshTokenRepository.delete(savedRefreshToken);
+            throw new BusinessException(ErrorCode.REFRESH_TOKEN_EXPIRED);
+        }
+
+        AppUser appUser = appUserRepository.findById(userId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+        validateLoginUserStatus(appUser);
+
+        if (!savedRefreshToken.getAppUser().getId().equals(appUser.getId())) {
+            throw new BusinessException(ErrorCode.INVALID_REFRESH_TOKEN);
+        }
+
+        refreshTokenRepository.delete(savedRefreshToken);
+        refreshTokenRepository.flush();
+
+        String newAccessToken = jwtTokenProvider.createAccessToken(subject);
+        String newRefreshToken = jwtTokenProvider.createRefreshToken(subject);
+        refreshTokenRepository.save(new RefreshToken(
+                appUser,
+                newRefreshToken,
+                now.plus(jwtProperties.refreshTokenExpiration())
+        ));
+
+        return new TokenRefreshResponse(newAccessToken, newRefreshToken);
+    }
+
     private AuthTokenResponse issueAuthTokens(AppUser appUser, LocalDateTime now) {
         String subject = String.valueOf(appUser.getId());
         String accessToken = jwtTokenProvider.createAccessToken(subject);
@@ -244,6 +288,24 @@ public class AuthService {
         );
         if (requestsInLastDay >= OTP_MAX_REQUESTS_PER_DAY) {
             throw new BusinessException(ErrorCode.OTP_RATE_LIMIT_EXCEEDED);
+        }
+    }
+
+    private String extractRefreshTokenSubject(String refreshToken) {
+        try {
+            return jwtTokenProvider.getRefreshTokenSubject(refreshToken);
+        } catch (ExpiredJwtException exception) {
+            throw new BusinessException(ErrorCode.REFRESH_TOKEN_EXPIRED);
+        } catch (RuntimeException exception) {
+            throw new BusinessException(ErrorCode.INVALID_REFRESH_TOKEN);
+        }
+    }
+
+    private Long parseUserId(String subject) {
+        try {
+            return Long.valueOf(subject);
+        } catch (NumberFormatException exception) {
+            throw new BusinessException(ErrorCode.INVALID_REFRESH_TOKEN);
         }
     }
 
