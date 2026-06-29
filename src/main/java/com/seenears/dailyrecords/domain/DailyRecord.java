@@ -19,6 +19,7 @@ import jakarta.persistence.UniqueConstraint;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.EnumMap;
 import java.util.Map;
 
@@ -28,6 +29,8 @@ import java.util.Map;
         uniqueConstraints = @UniqueConstraint(name = "uk_daily_records_user_record_date", columnNames = {"user_id", "record_date"})
 )
 public class DailyRecord {
+
+    private static final ZoneId SERVICE_ZONE = ZoneId.of("Asia/Seoul");
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -77,16 +80,34 @@ public class DailyRecord {
     protected DailyRecord() {
     }
 
+    public static DailyRecord create(
+            AppUser appUser,
+            LocalDate recordDate,
+            MoodType moodType,
+            String questionText,
+            QuestionSource questionSource
+    ) {
+        DailyRecord dailyRecord = new DailyRecord();
+        dailyRecord.appUser = appUser;
+        dailyRecord.recordDate = recordDate;
+        dailyRecord.moodType = moodType;
+        dailyRecord.questionText = questionText;
+        dailyRecord.questionSource = questionSource;
+        dailyRecord.status = DailyRecordStatus.QUESTION_ASSIGNED;
+        dailyRecord.questionGenerationStatus = QuestionGenerationStatus.PENDING;
+        return dailyRecord;
+    }
+
     @PrePersist
     void onCreate() {
-        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime now = LocalDateTime.now(SERVICE_ZONE);
         this.createdAt = now;
         this.updatedAt = now;
     }
 
     @PreUpdate
     void onUpdate() {
-        this.updatedAt = LocalDateTime.now();
+        this.updatedAt = LocalDateTime.now(SERVICE_ZONE);
     }
 
     public Long getId() {
@@ -105,8 +126,20 @@ public class DailyRecord {
         return questionText;
     }
 
+    public QuestionSource getQuestionSource() {
+        return questionSource;
+    }
+
+    public DailyRecordStatus getStatus() {
+        return status;
+    }
+
     public QuestionGenerationStatus getQuestionGenerationStatus() {
         return questionGenerationStatus;
+    }
+
+    public LocalDateTime getCreatedAt() {
+        return createdAt;
     }
 
     public Map<MoodType, String> getNextQuestions() {

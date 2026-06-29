@@ -19,7 +19,9 @@ public enum ErrorCode {
     INVALID_REFRESH_TOKEN(HttpStatus.BAD_REQUEST, "AUTH_011", "Refresh Token이 올바르지 않습니다."),
     REFRESH_TOKEN_EXPIRED(HttpStatus.UNAUTHORIZED, "AUTH_012", "Refresh Token이 만료되었습니다."),
     REFRESH_TOKEN_NOT_FOUND(HttpStatus.UNAUTHORIZED, "AUTH_013", "유효한 Refresh Token을 찾을 수 없습니다."),
-    DEFAULT_QUESTION_NOT_FOUND(HttpStatus.NOT_FOUND, "QUESTION_001", "활성 기본 질문을 찾을 수 없습니다.");
+    DEFAULT_QUESTION_NOT_FOUND(HttpStatus.NOT_FOUND, "QUESTION_001", "활성 기본 질문을 찾을 수 없습니다."),
+    DAILY_RECORD_ALREADY_EXISTS(HttpStatus.CONFLICT, "DAILY_RECORD_001", "오늘 이미 기록을 생성했습니다."),
+    DAILY_RECORD_TIME_NOT_ALLOWED(HttpStatus.FORBIDDEN, "DAILY_RECORD_002", "기록 가능한 시간이 아닙니다.");
 
     private final HttpStatus httpStatus;
     private final String code;
