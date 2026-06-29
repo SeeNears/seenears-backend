@@ -5,6 +5,7 @@ import com.seenears.auth.domain.UserStatus;
 import com.seenears.auth.repository.AppUserRepository;
 import com.seenears.dailyrecords.domain.DailyRecord;
 import com.seenears.dailyrecords.domain.QuestionGenerationStatus;
+import com.seenears.dailyrecords.domain.QuestionSource;
 import com.seenears.dailyrecords.repository.DailyRecordRepository;
 import com.seenears.global.domain.MoodType;
 import com.seenears.global.exception.BusinessException;
@@ -50,6 +51,17 @@ public class QuestionsService {
     }
 
     private TodayQuestionsResponse getCandidateQuestions(AppUser appUser, LocalDate today) {
+        QuestionCandidates candidates = resolveQuestionCandidates(appUser, today);
+
+        if (candidates.source() == QuestionSource.AI) {
+            return TodayQuestionsResponse.aiGenerated(candidates.baseRecordDate(), candidates.questions());
+        }
+
+        return TodayQuestionsResponse.defaults(candidates.questions());
+    }
+
+    @Transactional(readOnly = true)
+    public QuestionCandidates resolveQuestionCandidates(AppUser appUser, LocalDate today) {
         return dailyRecordRepository
                 .findTopByAppUserAndRecordDateLessThanAndQuestionGenerationStatusOrderByRecordDateDescCreatedAtDesc(
                         appUser,
@@ -57,11 +69,12 @@ public class QuestionsService {
                         QuestionGenerationStatus.SUCCESS
                 )
                 .filter(DailyRecord::hasAllNextQuestions)
-                .map(dailyRecord -> TodayQuestionsResponse.aiGenerated(
+                .map(dailyRecord -> new QuestionCandidates(
+                        QuestionSource.AI,
                         dailyRecord.getRecordDate(),
                         dailyRecord.getNextQuestions()
                 ))
-                .orElseGet(() -> TodayQuestionsResponse.defaults(getDefaultQuestions()));
+                .orElseGet(() -> new QuestionCandidates(QuestionSource.DEFAULT, null, getDefaultQuestions()));
     }
 
     private Map<MoodType, String> getDefaultQuestions() {
@@ -99,5 +112,12 @@ public class QuestionsService {
         } catch (NumberFormatException exception) {
             throw new BusinessException(ErrorCode.UNAUTHORIZED);
         }
+    }
+
+    public record QuestionCandidates(
+            QuestionSource source,
+            LocalDate baseRecordDate,
+            Map<MoodType, String> questions
+    ) {
     }
 }
