@@ -248,6 +248,26 @@ public class AuthService {
         return new TokenRefreshResponse(newAccessToken, newRefreshToken);
     }
 
+    @Transactional
+    public void logout(TokenRefreshRequest request) {
+        if (request == null || request.refreshToken() == null || request.refreshToken().isBlank()) {
+            throw new BusinessException(ErrorCode.INVALID_REFRESH_TOKEN);
+        }
+
+        String currentRefreshToken = request.refreshToken().trim();
+        String subject = extractRefreshTokenSubject(currentRefreshToken);
+        Long userId = parseUserId(subject);
+
+        RefreshToken savedRefreshToken = refreshTokenRepository.findByToken(currentRefreshToken)
+                .orElseThrow(() -> new BusinessException(ErrorCode.REFRESH_TOKEN_NOT_FOUND));
+
+        if (!savedRefreshToken.getAppUser().getId().equals(userId)) {
+            throw new BusinessException(ErrorCode.INVALID_REFRESH_TOKEN);
+        }
+
+        refreshTokenRepository.delete(savedRefreshToken);
+    }
+
     private AuthTokenResponse issueAuthTokens(AppUser appUser, LocalDateTime now) {
         String subject = String.valueOf(appUser.getId());
         String accessToken = jwtTokenProvider.createAccessToken(subject);

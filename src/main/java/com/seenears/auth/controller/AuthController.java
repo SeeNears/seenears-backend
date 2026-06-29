@@ -57,4 +57,10 @@ public class AuthController {
     public ApiResponse<TokenRefreshResponse> refreshToken(@Valid @RequestBody TokenRefreshRequest request) {
         return ApiResponse.success("토큰이 재발급되었습니다.", authService.refreshToken(request));
     }
+
+    @PostMapping("/logout")
+    public ApiResponse<Void> logout(@Valid @RequestBody TokenRefreshRequest request) {
+        authService.logout(request);
+        return ApiResponse.success("로그아웃되었습니다.", null);
+    }
 }
