@@ -7,6 +7,7 @@ import com.seenears.dailyrecords.domain.DailyRecord;
 import com.seenears.dailyrecords.dto.request.CreateDailyRecordRequest;
 import com.seenears.dailyrecords.dto.response.CreateDailyRecordResponse;
 import com.seenears.dailyrecords.dto.response.DailyRecordDetailResponse;
+import com.seenears.dailyrecords.dto.response.MonthlyDailyRecordsResponse;
 import com.seenears.dailyrecords.repository.DailyRecordRepository;
 import com.seenears.global.exception.BusinessException;
 import com.seenears.global.exception.ErrorCode;
@@ -19,7 +20,10 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.ZoneId;
+import java.util.Collections;
+import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 
 @Service
 public class DailyRecordsService {
@@ -27,6 +31,8 @@ public class DailyRecordsService {
     private static final ZoneId SERVICE_ZONE = ZoneId.of("Asia/Seoul");
     private static final LocalTime CREATION_START_TIME = LocalTime.of(18, 0);
     private static final String DAILY_RECORD_UNIQUE_CONSTRAINT = "uk_daily_records_user_record_date";
+    private static final int MIN_QUERY_YEAR = 2000;
+    private static final int MAX_QUERY_YEAR = 2100;
 
     private final AppUserRepository appUserRepository;
     private final DailyRecordRepository dailyRecordRepository;
@@ -97,6 +103,38 @@ public class DailyRecordsService {
 
         boolean hasVoice = voiceRecordRepository.existsByDailyRecord(dailyRecord);
         return DailyRecordDetailResponse.of(dailyRecord, hasVoice);
+    }
+
+    @Transactional(readOnly = true)
+    public MonthlyDailyRecordsResponse getMonthlyDailyRecords(
+            String authenticatedUserId,
+            int year,
+            int month
+    ) {
+        validateYearMonth(year, month);
+
+        AppUser appUser = getAuthenticatedUser(authenticatedUserId);
+        LocalDate startDate = LocalDate.of(year, month, 1);
+        LocalDate endDate = startDate.plusMonths(1);
+
+        List<DailyRecord> dailyRecords =
+                dailyRecordRepository.findByAppUserAndRecordDateGreaterThanEqualAndRecordDateLessThanOrderByRecordDateAsc(
+                        appUser,
+                        startDate,
+                        endDate
+                );
+
+        Set<Long> voiceSubmittedDailyRecordIds = dailyRecords.isEmpty()
+                ? Collections.emptySet()
+                : voiceRecordRepository.findDailyRecordIdsByDailyRecordIn(dailyRecords);
+
+        return MonthlyDailyRecordsResponse.of(year, month, dailyRecords, voiceSubmittedDailyRecordIds);
+    }
+
+    private void validateYearMonth(int year, int month) {
+        if (year < MIN_QUERY_YEAR || year > MAX_QUERY_YEAR || month < 1 || month > 12) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE);
+        }
     }
 
     private void validateOwner(AppUser appUser, DailyRecord dailyRecord) {
