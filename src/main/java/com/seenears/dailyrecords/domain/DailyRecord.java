@@ -44,18 +44,18 @@ public class DailyRecord {
     private LocalDate recordDate;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false, length = 20)
+    @Column(nullable = false, columnDefinition = "VARCHAR(20)")
     private MoodType moodType;
 
     @Column(nullable = false, length = 500)
     private String questionText;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false, length = 20)
+    @Column(nullable = false, columnDefinition = "VARCHAR(20)")
     private QuestionSource questionSource = QuestionSource.DEFAULT;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false, length = 30)
+    @Column(nullable = false, columnDefinition = "VARCHAR(30)")
     private DailyRecordStatus status = DailyRecordStatus.QUESTION_ASSIGNED;
 
     @Column(length = 500)
@@ -68,7 +68,7 @@ public class DailyRecord {
     private String nextQuestionRainy;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false, length = 30)
+    @Column(nullable = false, columnDefinition = "VARCHAR(30)")
     private QuestionGenerationStatus questionGenerationStatus = QuestionGenerationStatus.PENDING;
 
     @Column(nullable = false, updatable = false)
@@ -114,6 +114,10 @@ public class DailyRecord {
         return id;
     }
 
+    public AppUser getAppUser() {
+        return appUser;
+    }
+
     public LocalDate getRecordDate() {
         return recordDate;
     }
@@ -132,6 +136,10 @@ public class DailyRecord {
 
     public DailyRecordStatus getStatus() {
         return status;
+    }
+
+    public void submitVoice() {
+        this.status = DailyRecordStatus.VOICE_SUBMITTED;
     }
 
     public QuestionGenerationStatus getQuestionGenerationStatus() {
