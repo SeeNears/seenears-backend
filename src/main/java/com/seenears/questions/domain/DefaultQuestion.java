@@ -23,7 +23,7 @@ public class DefaultQuestion {
     private Long id;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false, length = 20)
+    @Column(nullable = false, columnDefinition = "VARCHAR(20)")
     private MoodType moodType;
 
     @Column(nullable = false, length = 500)

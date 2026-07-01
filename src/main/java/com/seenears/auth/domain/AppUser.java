@@ -35,7 +35,7 @@ public class AppUser {
     private LocalDate lastRecordedDate;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false, length = 30)
+    @Column(nullable = false, columnDefinition = "VARCHAR(30)")
     private UserStatus status;
 
     @Column
@@ -113,5 +113,24 @@ public class AppUser {
 
     public void updateLastLoginAt(LocalDateTime lastLoginAt) {
         this.lastLoginAt = lastLoginAt;
+    }
+
+    public void updateRecordStreak(LocalDate recordDate) {
+        if (lastRecordedDate == null) {
+            this.currentStreakDays = 1;
+            this.lastRecordedDate = recordDate;
+            return;
+        }
+
+        if (lastRecordedDate.isEqual(recordDate)) {
+            return;
+        }
+
+        if (lastRecordedDate.isEqual(recordDate.minusDays(1))) {
+            this.currentStreakDays += 1;
+        } else {
+            this.currentStreakDays = 1;
+        }
+        this.lastRecordedDate = recordDate;
     }
 }

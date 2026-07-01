@@ -27,11 +27,11 @@ public class OtpLog {
     private String otpCode;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false, length = 30)
+    @Column(nullable = false, columnDefinition = "VARCHAR(30)")
     private OtpPurpose purpose;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false, length = 30)
+    @Column(nullable = false, columnDefinition = "VARCHAR(30)")
     private OtpStatus status;
 
     @Column(nullable = false)

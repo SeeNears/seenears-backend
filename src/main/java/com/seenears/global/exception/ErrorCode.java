@@ -21,7 +21,15 @@ public enum ErrorCode {
     REFRESH_TOKEN_NOT_FOUND(HttpStatus.UNAUTHORIZED, "AUTH_013", "유효한 Refresh Token을 찾을 수 없습니다."),
     DEFAULT_QUESTION_NOT_FOUND(HttpStatus.NOT_FOUND, "QUESTION_001", "활성 기본 질문을 찾을 수 없습니다."),
     DAILY_RECORD_ALREADY_EXISTS(HttpStatus.CONFLICT, "DAILY_RECORD_001", "오늘 이미 기록을 생성했습니다."),
-    DAILY_RECORD_TIME_NOT_ALLOWED(HttpStatus.FORBIDDEN, "DAILY_RECORD_002", "기록 가능한 시간이 아닙니다.");
+    DAILY_RECORD_TIME_NOT_ALLOWED(HttpStatus.FORBIDDEN, "DAILY_RECORD_002", "기록 가능한 시간이 아닙니다."),
+    DAILY_RECORD_NOT_FOUND(HttpStatus.NOT_FOUND, "DAILY_RECORD_003", "하루 기록을 찾을 수 없습니다."),
+    DAILY_RECORD_STATUS_NOT_ALLOWED(HttpStatus.CONFLICT, "DAILY_RECORD_004", "현재 상태에서는 음성 기록을 제출할 수 없습니다."),
+    DAILY_RECORD_ACCESS_DENIED(HttpStatus.FORBIDDEN, "DAILY_RECORD_005", "다른 사용자의 하루 기록입니다."),
+    VOICE_RECORD_ALREADY_EXISTS(HttpStatus.CONFLICT, "VOICE_RECORD_001", "이미 음성 기록을 제출했습니다."),
+    VOICE_RECORD_INVALID_DURATION(HttpStatus.BAD_REQUEST, "VOICE_RECORD_002", "음성 길이가 올바르지 않습니다."),
+    VOICE_RECORD_FILE_EMPTY(HttpStatus.BAD_REQUEST, "VOICE_RECORD_003", "음성 파일은 필수입니다."),
+    VOICE_RECORD_FILE_TYPE_NOT_ALLOWED(HttpStatus.BAD_REQUEST, "VOICE_RECORD_004", "지원하지 않는 음성 파일 형식입니다."),
+    VOICE_RECORD_FILE_SAVE_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "VOICE_RECORD_005", "음성 파일 저장에 실패했습니다.");
 
     private final HttpStatus httpStatus;
     private final String code;
