@@ -8,6 +8,7 @@ import com.seenears.auth.repository.AppUserRepository;
 import com.seenears.dailyrecords.domain.DailyRecord;
 import com.seenears.dailyrecords.domain.QuestionSource;
 import com.seenears.dailyrecords.dto.response.DailyRecordDetailResponse;
+import com.seenears.dailyrecords.dto.response.MonthlyDailyRecordsResponse;
 import com.seenears.dailyrecords.repository.DailyRecordRepository;
 import com.seenears.global.domain.MoodType;
 import com.seenears.global.exception.BusinessException;
@@ -22,11 +23,15 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.LocalDate;
+import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.then;
+import static org.mockito.Mockito.never;
 
 @ExtendWith(MockitoExtension.class)
 class DailyRecordsServiceTest {
@@ -146,6 +151,120 @@ class DailyRecordsServiceTest {
         assertThat(json).doesNotContain("voiceRecord");
     }
 
+    @Test
+    void getMonthlyDailyRecordsReturnsRecordsOrderedByRecordDate() {
+        AppUser appUser = appUser(USER_ID);
+        DailyRecord firstRecord = dailyRecord(DAILY_RECORD_ID, appUser, LocalDate.of(2026, 7, 1));
+        DailyRecord secondRecord = dailyRecord(DAILY_RECORD_ID + 1, appUser, LocalDate.of(2026, 7, 3));
+        secondRecord.submitVoice();
+        List<DailyRecord> dailyRecords = List.of(firstRecord, secondRecord);
+        given(appUserRepository.findById(USER_ID)).willReturn(Optional.of(appUser));
+        given(dailyRecordRepository.findByAppUserAndRecordDateGreaterThanEqualAndRecordDateLessThanOrderByRecordDateAsc(
+                appUser,
+                LocalDate.of(2026, 7, 1),
+                LocalDate.of(2026, 8, 1)
+        )).willReturn(dailyRecords);
+        given(voiceRecordRepository.findDailyRecordIdsByDailyRecordIn(dailyRecords)).willReturn(Set.of(secondRecord.getId()));
+
+        MonthlyDailyRecordsResponse response = dailyRecordsService.getMonthlyDailyRecords(
+                String.valueOf(USER_ID),
+                2026,
+                7
+        );
+
+        assertThat(response.year()).isEqualTo(2026);
+        assertThat(response.month()).isEqualTo(7);
+        assertThat(response.records()).hasSize(2);
+        assertThat(response.records()).extracting(MonthlyDailyRecordsResponse.RecordResponse::recordDate)
+                .containsExactly(LocalDate.of(2026, 7, 1), LocalDate.of(2026, 7, 3));
+        assertThat(response.records().get(0).hasVoice()).isFalse();
+        assertThat(response.records().get(1).hasVoice()).isTrue();
+        assertThat(response.records().get(1).status()).isEqualTo(secondRecord.getStatus());
+        assertThat(response.records().get(0).hasLetter()).isFalse();
+        assertThat(response.records().get(0).letterId()).isNull();
+        assertThat(response.records().get(0).letterStatus()).isNull();
+        assertThat(response.records().get(0).letterRead()).isNull();
+    }
+
+    @Test
+    void getMonthlyDailyRecordsReturnsEmptyRecordsWhenMonthlyRecordDoesNotExist() {
+        AppUser appUser = appUser(USER_ID);
+        given(appUserRepository.findById(USER_ID)).willReturn(Optional.of(appUser));
+        given(dailyRecordRepository.findByAppUserAndRecordDateGreaterThanEqualAndRecordDateLessThanOrderByRecordDateAsc(
+                appUser,
+                LocalDate.of(2026, 7, 1),
+                LocalDate.of(2026, 8, 1)
+        )).willReturn(List.of());
+
+        MonthlyDailyRecordsResponse response = dailyRecordsService.getMonthlyDailyRecords(
+                String.valueOf(USER_ID),
+                2026,
+                7
+        );
+
+        assertThat(response.year()).isEqualTo(2026);
+        assertThat(response.month()).isEqualTo(7);
+        assertThat(response.records()).isEmpty();
+        then(voiceRecordRepository).should(never()).findDailyRecordIdsByDailyRecordIn(List.of());
+    }
+
+    @Test
+    void getMonthlyDailyRecordsThrowsInvalidInputWhenMonthIsInvalid() {
+        assertThatThrownBy(() -> dailyRecordsService.getMonthlyDailyRecords(
+                String.valueOf(USER_ID),
+                2026,
+                13
+        ))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode")
+                .isEqualTo(ErrorCode.INVALID_INPUT_VALUE);
+    }
+
+    @Test
+    void getMonthlyDailyRecordsQueriesOnlyAuthenticatedUsersRecords() {
+        AppUser appUser = appUser(USER_ID);
+        given(appUserRepository.findById(USER_ID)).willReturn(Optional.of(appUser));
+        given(dailyRecordRepository.findByAppUserAndRecordDateGreaterThanEqualAndRecordDateLessThanOrderByRecordDateAsc(
+                appUser,
+                LocalDate.of(2026, 7, 1),
+                LocalDate.of(2026, 8, 1)
+        )).willReturn(List.of());
+
+        dailyRecordsService.getMonthlyDailyRecords(String.valueOf(USER_ID), 2026, 7);
+
+        then(dailyRecordRepository).should()
+                .findByAppUserAndRecordDateGreaterThanEqualAndRecordDateLessThanOrderByRecordDateAsc(
+                        appUser,
+                        LocalDate.of(2026, 7, 1),
+                        LocalDate.of(2026, 8, 1)
+                );
+    }
+
+    @Test
+    void monthlyDailyRecordsResponseDoesNotExposeDetailFields() throws JsonProcessingException {
+        AppUser appUser = appUser(USER_ID);
+        DailyRecord dailyRecord = dailyRecord(DAILY_RECORD_ID, appUser);
+        MonthlyDailyRecordsResponse response = MonthlyDailyRecordsResponse.of(
+                2026,
+                7,
+                List.of(dailyRecord),
+                Set.of()
+        );
+
+        String json = new ObjectMapper()
+                .findAndRegisterModules()
+                .writeValueAsString(response);
+
+        assertThat(json).contains("\"hasVoice\":false");
+        assertThat(json).contains("\"hasLetter\":false");
+        assertThat(json).doesNotContain("questionText");
+        assertThat(json).doesNotContain("questionUsed");
+        assertThat(json).doesNotContain("audioUrl");
+        assertThat(json).doesNotContain("sttText");
+        assertThat(json).doesNotContain("voiceRecord");
+        assertThat(json).doesNotContain("letterContent");
+    }
+
     private AppUser appUser(Long id) {
         AppUser appUser = new AppUser("테스터", "01000000000" + id, UserStatus.ACTIVE);
         ReflectionTestUtils.setField(appUser, "id", id);
@@ -153,9 +272,13 @@ class DailyRecordsServiceTest {
     }
 
     private DailyRecord dailyRecord(Long id, AppUser appUser) {
+        return dailyRecord(id, appUser, LocalDate.of(2026, 7, 1));
+    }
+
+    private DailyRecord dailyRecord(Long id, AppUser appUser, LocalDate recordDate) {
         DailyRecord dailyRecord = DailyRecord.create(
                 appUser,
-                LocalDate.of(2026, 7, 1),
+                recordDate,
                 MoodType.SUNNY,
                 "오늘 기분이 좋으셨던 이유가 있을까요?",
                 QuestionSource.DEFAULT
