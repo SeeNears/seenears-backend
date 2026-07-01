@@ -6,10 +6,12 @@ import com.seenears.auth.repository.AppUserRepository;
 import com.seenears.dailyrecords.domain.DailyRecord;
 import com.seenears.dailyrecords.dto.request.CreateDailyRecordRequest;
 import com.seenears.dailyrecords.dto.response.CreateDailyRecordResponse;
+import com.seenears.dailyrecords.dto.response.DailyRecordDetailResponse;
 import com.seenears.dailyrecords.repository.DailyRecordRepository;
 import com.seenears.global.exception.BusinessException;
 import com.seenears.global.exception.ErrorCode;
 import com.seenears.questions.service.QuestionsService;
+import com.seenears.voicerecords.repository.VoiceRecordRepository;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -29,15 +31,18 @@ public class DailyRecordsService {
     private final AppUserRepository appUserRepository;
     private final DailyRecordRepository dailyRecordRepository;
     private final QuestionsService questionsService;
+    private final VoiceRecordRepository voiceRecordRepository;
 
     public DailyRecordsService(
             AppUserRepository appUserRepository,
             DailyRecordRepository dailyRecordRepository,
-            QuestionsService questionsService
+            QuestionsService questionsService,
+            VoiceRecordRepository voiceRecordRepository
     ) {
         this.appUserRepository = appUserRepository;
         this.dailyRecordRepository = dailyRecordRepository;
         this.questionsService = questionsService;
+        this.voiceRecordRepository = voiceRecordRepository;
     }
 
     @Transactional
@@ -76,6 +81,27 @@ public class DailyRecordsService {
                 throw new BusinessException(ErrorCode.DAILY_RECORD_ALREADY_EXISTS);
             }
             throw exception;
+        }
+    }
+
+    @Transactional(readOnly = true)
+    public DailyRecordDetailResponse getDailyRecordDetail(
+            String authenticatedUserId,
+            Long dailyRecordId
+    ) {
+        AppUser appUser = getAuthenticatedUser(authenticatedUserId);
+        DailyRecord dailyRecord = dailyRecordRepository.findById(dailyRecordId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.DAILY_RECORD_NOT_FOUND));
+
+        validateOwner(appUser, dailyRecord);
+
+        boolean hasVoice = voiceRecordRepository.existsByDailyRecord(dailyRecord);
+        return DailyRecordDetailResponse.of(dailyRecord, hasVoice);
+    }
+
+    private void validateOwner(AppUser appUser, DailyRecord dailyRecord) {
+        if (!dailyRecord.getAppUser().getId().equals(appUser.getId())) {
+            throw new BusinessException(ErrorCode.DAILY_RECORD_ACCESS_DENIED);
         }
     }
 
