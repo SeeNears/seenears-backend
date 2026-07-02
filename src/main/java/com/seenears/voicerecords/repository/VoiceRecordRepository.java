@@ -10,11 +10,14 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 
 public interface VoiceRecordRepository extends JpaRepository<VoiceRecord, Long> {
 
     boolean existsByDailyRecord(DailyRecord dailyRecord);
+
+    Optional<VoiceRecord> findByDailyRecord(DailyRecord dailyRecord);
 
     @Query("select vr.dailyRecord.id from VoiceRecord vr where vr.dailyRecord in :dailyRecords")
     Set<Long> findDailyRecordIdsByDailyRecordIn(@Param("dailyRecords") List<DailyRecord> dailyRecords);
