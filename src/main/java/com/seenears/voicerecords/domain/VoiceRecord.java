@@ -115,7 +115,21 @@ public class VoiceRecord {
         return sttStatus;
     }
 
+    public String getSttText() {
+        return sttText;
+    }
+
     public LocalDateTime getCreatedAt() {
         return createdAt;
+    }
+
+    public void saveSttSuccess(String sttText) {
+        this.sttStatus = SttStatus.SUCCESS;
+        this.sttText = sttText;
+    }
+
+    public void saveSttFailure() {
+        this.sttStatus = SttStatus.FAILED;
+        this.sttText = null;
     }
 }
