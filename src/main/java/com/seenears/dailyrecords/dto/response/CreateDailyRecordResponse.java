@@ -12,7 +12,6 @@ public record CreateDailyRecordResponse(
         LocalDate recordDate,
         MoodType moodType,
         String questionText,
-        MoodType questionUsed,
         DailyRecordStatus status,
         LocalDateTime createdAt
 ) {
@@ -23,7 +22,6 @@ public record CreateDailyRecordResponse(
                 dailyRecord.getRecordDate(),
                 dailyRecord.getMoodType(),
                 dailyRecord.getQuestionText(),
-                dailyRecord.getMoodType(),
                 dailyRecord.getStatus(),
                 dailyRecord.getCreatedAt()
         );
