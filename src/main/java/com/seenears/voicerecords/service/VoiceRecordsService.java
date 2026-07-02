@@ -8,12 +8,15 @@ import com.seenears.dailyrecords.domain.DailyRecordStatus;
 import com.seenears.dailyrecords.repository.DailyRecordRepository;
 import com.seenears.global.exception.BusinessException;
 import com.seenears.global.exception.ErrorCode;
+import com.seenears.letters.domain.Letter;
+import com.seenears.letters.repository.LetterRepository;
 import com.seenears.voicerecords.domain.VoiceRecord;
 import com.seenears.voicerecords.dto.request.CreateVoiceRecordRequest;
 import com.seenears.voicerecords.dto.response.CreateVoiceRecordResponse;
 import com.seenears.voicerecords.repository.VoiceRecordRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
@@ -26,6 +29,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
+import java.time.Clock;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.ZoneId;
@@ -62,18 +66,36 @@ public class VoiceRecordsService {
     private final AppUserRepository appUserRepository;
     private final DailyRecordRepository dailyRecordRepository;
     private final VoiceRecordRepository voiceRecordRepository;
+    private final LetterRepository letterRepository;
     private final Path voiceRecordDir;
+    private final Clock clock;
 
+    @Autowired
     public VoiceRecordsService(
             AppUserRepository appUserRepository,
             DailyRecordRepository dailyRecordRepository,
             VoiceRecordRepository voiceRecordRepository,
+            LetterRepository letterRepository,
             @Value("${app.upload.voice-record-dir:uploads/voice-records}") String voiceRecordDir
+    ) {
+        this(appUserRepository, dailyRecordRepository, voiceRecordRepository, letterRepository,
+                voiceRecordDir, Clock.system(SERVICE_ZONE));
+    }
+
+    VoiceRecordsService(
+            AppUserRepository appUserRepository,
+            DailyRecordRepository dailyRecordRepository,
+            VoiceRecordRepository voiceRecordRepository,
+            LetterRepository letterRepository,
+            String voiceRecordDir,
+            Clock clock
     ) {
         this.appUserRepository = appUserRepository;
         this.dailyRecordRepository = dailyRecordRepository;
         this.voiceRecordRepository = voiceRecordRepository;
+        this.letterRepository = letterRepository;
         this.voiceRecordDir = Paths.get(voiceRecordDir).normalize();
+        this.clock = clock;
     }
 
     @Transactional
@@ -109,13 +131,14 @@ public class VoiceRecordsService {
                     durationSeconds
             );
             VoiceRecord savedVoiceRecord = voiceRecordRepository.saveAndFlush(voiceRecord);
+            Letter letter = getOrCreatePendingLetter(dailyRecord);
 
             dailyRecord.submitVoice();
-            appUser.updateRecordStreak(LocalDate.now(SERVICE_ZONE));
+            appUser.updateRecordStreak(LocalDate.now(clock));
             dailyRecordRepository.flush();
             appUserRepository.flush();
 
-            return CreateVoiceRecordResponse.from(savedVoiceRecord);
+            return CreateVoiceRecordResponse.from(savedVoiceRecord, letter);
         } catch (DataIntegrityViolationException exception) {
             deleteStoredFile(storedVoiceFile.path());
             if (isVoiceRecordDuplicateCreation(exception)) {
@@ -129,10 +152,15 @@ public class VoiceRecordsService {
     }
 
     private void validateSubmissionTime() {
-        LocalTime now = LocalTime.now(SERVICE_ZONE);
+        LocalTime now = LocalTime.now(clock);
         if (now.isBefore(SUBMISSION_START_TIME)) {
             throw new BusinessException(ErrorCode.DAILY_RECORD_TIME_NOT_ALLOWED);
         }
+    }
+
+    private Letter getOrCreatePendingLetter(DailyRecord dailyRecord) {
+        return letterRepository.findByDailyRecordId(dailyRecord.getId())
+                .orElseGet(() -> letterRepository.saveAndFlush(Letter.create(dailyRecord)));
     }
 
     private void validateOwner(AppUser appUser, DailyRecord dailyRecord) {

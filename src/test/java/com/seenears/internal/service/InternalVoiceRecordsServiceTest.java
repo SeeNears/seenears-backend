@@ -11,6 +11,9 @@ import com.seenears.global.exception.ErrorCode;
 import com.seenears.internal.dto.request.SaveSttResultRequest;
 import com.seenears.internal.dto.response.PendingSttVoiceRecordsResponse;
 import com.seenears.internal.dto.response.SaveSttResultResponse;
+import com.seenears.letters.domain.Letter;
+import com.seenears.letters.domain.LetterStatus;
+import com.seenears.letters.repository.LetterRepository;
 import com.seenears.voicerecords.domain.SttStatus;
 import com.seenears.voicerecords.domain.VoiceRecord;
 import com.seenears.voicerecords.repository.VoiceRecordRepository;
@@ -40,15 +43,19 @@ class InternalVoiceRecordsServiceTest {
     private static final Long USER_ID = 1L;
     private static final Long DAILY_RECORD_ID = 10L;
     private static final Long VOICE_RECORD_ID = 5L;
+    private static final Long LETTER_ID = 2L;
 
     @Mock
     private VoiceRecordRepository voiceRecordRepository;
+
+    @Mock
+    private LetterRepository letterRepository;
 
     private InternalVoiceRecordsService internalVoiceRecordsService;
 
     @BeforeEach
     void setUp() {
-        internalVoiceRecordsService = new InternalVoiceRecordsService(voiceRecordRepository);
+        internalVoiceRecordsService = new InternalVoiceRecordsService(voiceRecordRepository, letterRepository);
     }
 
     @Test
@@ -59,6 +66,8 @@ class InternalVoiceRecordsServiceTest {
                 eq(DailyRecordStatus.VOICE_SUBMITTED),
                 org.mockito.ArgumentMatchers.any(Pageable.class)
         )).willReturn(List.of(voiceRecord));
+        given(letterRepository.findByDailyRecordIdIn(List.of(DAILY_RECORD_ID)))
+                .willReturn(List.of(letter(voiceRecord.getDailyRecord())));
 
         PendingSttVoiceRecordsResponse response = internalVoiceRecordsService.getPendingSttVoiceRecords(10);
 
@@ -71,6 +80,8 @@ class InternalVoiceRecordsServiceTest {
         assertThat(response.voiceRecords().get(0).recordDate()).isEqualTo(LocalDate.of(2026, 7, 1));
         assertThat(response.voiceRecords().get(0).moodType()).isEqualTo(MoodType.SUNNY);
         assertThat(response.voiceRecords().get(0).questionText()).isEqualTo("오늘 기분이 좋으셨던 이유가 있을까요?");
+        assertThat(response.voiceRecords().get(0).letterId()).isEqualTo(LETTER_ID);
+        assertThat(response.voiceRecords().get(0).letterStatus()).isEqualTo(LetterStatus.PENDING);
 
         ArgumentCaptor<Pageable> pageableCaptor = ArgumentCaptor.forClass(Pageable.class);
         verify(voiceRecordRepository).findPendingSttVoiceRecords(
@@ -79,6 +90,26 @@ class InternalVoiceRecordsServiceTest {
                 pageableCaptor.capture()
         );
         assertThat(pageableCaptor.getValue().getPageSize()).isEqualTo(10);
+    }
+
+    @Test
+    void getPendingSttVoiceRecordsReturnsNullLetterFieldsWhenLetterDoesNotExist() {
+        VoiceRecord voiceRecord = voiceRecord(SttStatus.PENDING, true);
+        given(voiceRecordRepository.findPendingSttVoiceRecords(
+                eq(SttStatus.PENDING),
+                eq(DailyRecordStatus.VOICE_SUBMITTED),
+                org.mockito.ArgumentMatchers.any(Pageable.class)
+        )).willReturn(List.of(voiceRecord));
+        given(letterRepository.findByDailyRecordIdIn(List.of(DAILY_RECORD_ID)))
+                .willReturn(List.of());
+
+        PendingSttVoiceRecordsResponse response = internalVoiceRecordsService.getPendingSttVoiceRecords(10);
+
+        assertThat(response.voiceRecords()).hasSize(1);
+        assertThat(response.voiceRecords().get(0).voiceRecordId()).isEqualTo(VOICE_RECORD_ID);
+        assertThat(response.voiceRecords().get(0).dailyRecordId()).isEqualTo(DAILY_RECORD_ID);
+        assertThat(response.voiceRecords().get(0).letterId()).isNull();
+        assertThat(response.voiceRecords().get(0).letterStatus()).isNull();
     }
 
     @Test
@@ -194,5 +225,11 @@ class InternalVoiceRecordsServiceTest {
         ReflectionTestUtils.setField(voiceRecord, "sttStatus", sttStatus);
         ReflectionTestUtils.setField(voiceRecord, "createdAt", LocalDateTime.of(2026, 7, 1, 18, 10));
         return voiceRecord;
+    }
+
+    private Letter letter(DailyRecord dailyRecord) {
+        Letter letter = Letter.create(dailyRecord);
+        ReflectionTestUtils.setField(letter, "id", LETTER_ID);
+        return letter;
     }
 }

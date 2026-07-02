@@ -6,6 +6,8 @@ import com.seenears.global.exception.ErrorCode;
 import com.seenears.internal.dto.request.SaveSttResultRequest;
 import com.seenears.internal.dto.response.PendingSttVoiceRecordsResponse;
 import com.seenears.internal.dto.response.SaveSttResultResponse;
+import com.seenears.letters.domain.Letter;
+import com.seenears.letters.repository.LetterRepository;
 import com.seenears.voicerecords.domain.SttStatus;
 import com.seenears.voicerecords.domain.VoiceRecord;
 import com.seenears.voicerecords.repository.VoiceRecordRepository;
@@ -14,6 +16,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 @Service
 public class InternalVoiceRecordsService {
@@ -22,9 +27,14 @@ public class InternalVoiceRecordsService {
     private static final int MAX_PENDING_STT_LIMIT = 50;
 
     private final VoiceRecordRepository voiceRecordRepository;
+    private final LetterRepository letterRepository;
 
-    public InternalVoiceRecordsService(VoiceRecordRepository voiceRecordRepository) {
+    public InternalVoiceRecordsService(
+            VoiceRecordRepository voiceRecordRepository,
+            LetterRepository letterRepository
+    ) {
         this.voiceRecordRepository = voiceRecordRepository;
+        this.letterRepository = letterRepository;
     }
 
     @Transactional(readOnly = true)
@@ -36,7 +46,24 @@ public class InternalVoiceRecordsService {
                 DailyRecordStatus.VOICE_SUBMITTED,
                 PageRequest.of(0, limit)
         );
-        return PendingSttVoiceRecordsResponse.from(voiceRecords);
+        Map<Long, Letter> lettersByDailyRecordId = findLettersByDailyRecordId(voiceRecords);
+        return PendingSttVoiceRecordsResponse.from(voiceRecords, lettersByDailyRecordId);
+    }
+
+    private Map<Long, Letter> findLettersByDailyRecordId(List<VoiceRecord> voiceRecords) {
+        List<Long> dailyRecordIds = voiceRecords.stream()
+                .map(voiceRecord -> voiceRecord.getDailyRecord().getId())
+                .toList();
+
+        if (dailyRecordIds.isEmpty()) {
+            return Map.of();
+        }
+
+        return letterRepository.findByDailyRecordIdIn(dailyRecordIds).stream()
+                .collect(Collectors.toMap(
+                        letter -> letter.getDailyRecord().getId(),
+                        Function.identity()
+                ));
     }
 
     @Transactional
