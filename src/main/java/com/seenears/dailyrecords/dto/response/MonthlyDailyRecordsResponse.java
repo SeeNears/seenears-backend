@@ -3,9 +3,11 @@ package com.seenears.dailyrecords.dto.response;
 import com.seenears.dailyrecords.domain.DailyRecord;
 import com.seenears.dailyrecords.domain.DailyRecordStatus;
 import com.seenears.global.domain.MoodType;
+import com.seenears.letters.domain.Letter;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 public record MonthlyDailyRecordsResponse(
@@ -18,12 +20,14 @@ public record MonthlyDailyRecordsResponse(
             int year,
             int month,
             List<DailyRecord> dailyRecords,
-            Set<Long> voiceSubmittedDailyRecordIds
+            Set<Long> voiceSubmittedDailyRecordIds,
+            Map<Long, Letter> lettersByDailyRecordId
     ) {
         List<RecordResponse> records = dailyRecords.stream()
                 .map(dailyRecord -> RecordResponse.of(
                         dailyRecord,
-                        voiceSubmittedDailyRecordIds.contains(dailyRecord.getId())
+                        voiceSubmittedDailyRecordIds.contains(dailyRecord.getId()),
+                        lettersByDailyRecordId.get(dailyRecord.getId())
                 ))
                 .toList();
 
@@ -42,18 +46,17 @@ public record MonthlyDailyRecordsResponse(
             Boolean letterRead
     ) {
 
-        public static RecordResponse of(DailyRecord dailyRecord, boolean hasVoice) {
-            // TODO: When Letter entity/repository is implemented, map the letter row linked by daily_record_id here.
+        public static RecordResponse of(DailyRecord dailyRecord, boolean hasVoice, Letter letter) {
             return new RecordResponse(
                     dailyRecord.getId(),
                     dailyRecord.getRecordDate(),
                     dailyRecord.getMoodType(),
                     dailyRecord.getStatus(),
                     hasVoice,
-                    false,
-                    null,
-                    null,
-                    null
+                    letter != null,
+                    letter == null ? null : letter.getId(),
+                    letter == null ? null : letter.getStatus().name(),
+                    letter == null ? null : letter.isRead()
             );
         }
     }
