@@ -13,7 +13,7 @@ public record TodayQuestionsResponse(
         boolean alreadyRecorded,
         Long dailyRecordId,
         @JsonInclude(JsonInclude.Include.NON_NULL)
-        MoodType questionUsed,
+        MoodType moodType,
         @JsonInclude(JsonInclude.Include.NON_NULL)
         String questionText,
         Map<MoodType, String> questions
