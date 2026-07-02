@@ -6,6 +6,7 @@ import com.seenears.global.response.ErrorResponse;
 import com.seenears.global.security.jwt.JwtAuthenticationFilter;
 import com.seenears.global.security.jwt.JwtProperties;
 import com.seenears.global.security.jwt.JwtTokenProvider;
+import org.springframework.beans.factory.annotation.Value;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -35,6 +36,13 @@ public class SecurityConfig {
     }
 
     @Bean
+    public InternalApiKeyAuthenticationFilter internalApiKeyAuthenticationFilter(
+            @Value("${app.internal-api-key}") String internalApiKey
+    ) {
+        return new InternalApiKeyAuthenticationFilter(internalApiKey, objectMapper);
+    }
+
+    @Bean
     public FilterRegistrationBean<JwtAuthenticationFilter> jwtAuthenticationFilterRegistration(
             JwtAuthenticationFilter jwtAuthenticationFilter
     ) {
@@ -45,9 +53,20 @@ public class SecurityConfig {
     }
 
     @Bean
+    public FilterRegistrationBean<InternalApiKeyAuthenticationFilter> internalApiKeyAuthenticationFilterRegistration(
+            InternalApiKeyAuthenticationFilter internalApiKeyAuthenticationFilter
+    ) {
+        FilterRegistrationBean<InternalApiKeyAuthenticationFilter> registration =
+                new FilterRegistrationBean<>(internalApiKeyAuthenticationFilter);
+        registration.setEnabled(false);
+        return registration;
+    }
+
+    @Bean
     public SecurityFilterChain securityFilterChain(
             HttpSecurity http,
-            JwtAuthenticationFilter jwtAuthenticationFilter
+            JwtAuthenticationFilter jwtAuthenticationFilter,
+            InternalApiKeyAuthenticationFilter internalApiKeyAuthenticationFilter
     ) throws Exception {
         return http
                 .csrf(csrf -> csrf.disable())
@@ -57,6 +76,7 @@ public class SecurityConfig {
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(authorize -> authorize
                         .requestMatchers("/api/auth/**", "/error").permitAll()
+                        .requestMatchers("/api/internal/**").hasRole("INTERNAL")
                         .anyRequest().authenticated()
                 )
                 .exceptionHandling(exception -> exception
@@ -65,6 +85,7 @@ public class SecurityConfig {
                         .accessDeniedHandler((request, response, accessDeniedException) ->
                                 writeErrorResponse(response, ErrorCode.FORBIDDEN))
                 )
+                .addFilterBefore(internalApiKeyAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
                 .build();
     }

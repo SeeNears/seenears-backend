@@ -27,5 +27,6 @@ jwt:
   refresh-token-expiration: ${JWT_REFRESH_TOKEN_EXPIRATION:14d}
 
 app:
+  internal-api-key: ${INTERNAL_API_KEY:seenears-local-internal-api-key}
   upload:
     voice-record-dir: ${VOICE_RECORD_UPLOAD_DIR:uploads/voice-records}

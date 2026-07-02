@@ -29,7 +29,9 @@ public enum ErrorCode {
     VOICE_RECORD_INVALID_DURATION(HttpStatus.BAD_REQUEST, "VOICE_RECORD_002", "음성 길이가 올바르지 않습니다."),
     VOICE_RECORD_FILE_EMPTY(HttpStatus.BAD_REQUEST, "VOICE_RECORD_003", "음성 파일은 필수입니다."),
     VOICE_RECORD_FILE_TYPE_NOT_ALLOWED(HttpStatus.BAD_REQUEST, "VOICE_RECORD_004", "지원하지 않는 음성 파일 형식입니다."),
-    VOICE_RECORD_FILE_SAVE_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "VOICE_RECORD_005", "음성 파일 저장에 실패했습니다.");
+    VOICE_RECORD_FILE_SAVE_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "VOICE_RECORD_005", "음성 파일 저장에 실패했습니다."),
+    VOICE_RECORD_NOT_FOUND(HttpStatus.NOT_FOUND, "VOICE_RECORD_006", "음성 기록을 찾을 수 없습니다."),
+    VOICE_RECORD_STT_ALREADY_COMPLETED(HttpStatus.CONFLICT, "VOICE_RECORD_007", "이미 STT 처리가 완료된 음성 기록입니다.");
 
     private final HttpStatus httpStatus;
     private final String code;
