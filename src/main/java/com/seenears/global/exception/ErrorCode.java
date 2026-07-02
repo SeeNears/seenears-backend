@@ -43,7 +43,10 @@ public enum ErrorCode {
             HttpStatus.CONFLICT,
             "QUESTION_GENERATION_002",
             "이미 다음 질문 생성이 완료된 하루 기록입니다."
-    );
+    ),
+    LETTER_NOT_FOUND(HttpStatus.NOT_FOUND, "LETTER_001", "편지를 찾을 수 없습니다."),
+    LETTER_ALREADY_GENERATED(HttpStatus.CONFLICT, "LETTER_002", "이미 생성 완료된 편지입니다."),
+    LETTER_VOICE_RECORD_MISMATCH(HttpStatus.CONFLICT, "LETTER_003", "편지와 음성 기록이 일치하지 않습니다.");
 
     private final HttpStatus httpStatus;
     private final String code;
