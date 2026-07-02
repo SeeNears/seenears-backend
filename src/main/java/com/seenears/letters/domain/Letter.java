@@ -81,7 +81,7 @@ public class Letter {
         Letter letter = new Letter();
         letter.appUser = dailyRecord.getAppUser();
         letter.dailyRecord = dailyRecord;
-        letter.letterDate = dailyRecord.getRecordDate();
+        letter.letterDate = dailyRecord.getRecordDate().plusDays(1);
         letter.status = LetterStatus.PENDING;
         letter.read = false;
         letter.fallbackUsed = false;

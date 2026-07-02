@@ -7,6 +7,8 @@ import com.seenears.internal.dto.request.SaveSttResultRequest;
 import com.seenears.internal.dto.response.PendingSttVoiceRecordsResponse;
 import com.seenears.internal.dto.response.SaveSttResultResponse;
 import com.seenears.internal.service.InternalVoiceRecordsService;
+import com.seenears.global.domain.MoodType;
+import com.seenears.letters.domain.LetterStatus;
 import com.seenears.voicerecords.domain.SttStatus;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -18,6 +20,8 @@ import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.util.List;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -75,13 +79,29 @@ class InternalVoiceRecordsControllerTest {
     @Test
     void getPendingSttVoiceRecordsSucceedsWithValidApiKeyAndDefaultLimit() throws Exception {
         given(internalVoiceRecordsService.getPendingSttVoiceRecords(10))
-                .willReturn(new PendingSttVoiceRecordsResponse(List.of()));
+                .willReturn(new PendingSttVoiceRecordsResponse(List.of(
+                        new PendingSttVoiceRecordsResponse.VoiceRecordResponse(
+                                5L,
+                                10L,
+                                1L,
+                                "uploads/voice.aac",
+                                120,
+                                LocalDate.of(2026, 7, 1),
+                                MoodType.SUNNY,
+                                "오늘 기분이 좋으셨던 이유가 있을까요?",
+                                2L,
+                                LetterStatus.PENDING,
+                                LocalDateTime.of(2026, 7, 1, 18, 10)
+                        )
+                )));
 
         mockMvc.perform(get("/api/internal/voice-records/pending-stt")
                         .header(INTERNAL_API_KEY_HEADER, "test-internal-key"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
-                .andExpect(jsonPath("$.data.voiceRecords").isArray());
+                .andExpect(jsonPath("$.data.voiceRecords").isArray())
+                .andExpect(jsonPath("$.data.voiceRecords[0].letterId").value(2))
+                .andExpect(jsonPath("$.data.voiceRecords[0].letterStatus").value("PENDING"));
 
         verify(internalVoiceRecordsService).getPendingSttVoiceRecords(10);
     }
