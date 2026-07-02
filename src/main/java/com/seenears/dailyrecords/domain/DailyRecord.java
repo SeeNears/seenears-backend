@@ -71,6 +71,9 @@ public class DailyRecord {
     @Column(nullable = false, columnDefinition = "VARCHAR(30)")
     private QuestionGenerationStatus questionGenerationStatus = QuestionGenerationStatus.PENDING;
 
+    @Column
+    private LocalDateTime questionGeneratedAt;
+
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
@@ -144,6 +147,23 @@ public class DailyRecord {
 
     public QuestionGenerationStatus getQuestionGenerationStatus() {
         return questionGenerationStatus;
+    }
+
+    public LocalDateTime getQuestionGeneratedAt() {
+        return questionGeneratedAt;
+    }
+
+    public void saveNextQuestions(String nextQuestionSunny, String nextQuestionCloudy, String nextQuestionRainy) {
+        this.nextQuestionSunny = nextQuestionSunny;
+        this.nextQuestionCloudy = nextQuestionCloudy;
+        this.nextQuestionRainy = nextQuestionRainy;
+        this.questionGenerationStatus = QuestionGenerationStatus.SUCCESS;
+        this.questionGeneratedAt = LocalDateTime.now(SERVICE_ZONE);
+    }
+
+    public void saveNextQuestionsFailed() {
+        this.questionGenerationStatus = QuestionGenerationStatus.FAILED;
+        this.questionGeneratedAt = LocalDateTime.now(SERVICE_ZONE);
     }
 
     public LocalDateTime getCreatedAt() {
