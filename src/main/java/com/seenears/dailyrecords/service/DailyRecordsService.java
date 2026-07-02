@@ -11,6 +11,8 @@ import com.seenears.dailyrecords.dto.response.MonthlyDailyRecordsResponse;
 import com.seenears.dailyrecords.repository.DailyRecordRepository;
 import com.seenears.global.exception.BusinessException;
 import com.seenears.global.exception.ErrorCode;
+import com.seenears.letters.domain.Letter;
+import com.seenears.letters.repository.LetterRepository;
 import com.seenears.questions.service.QuestionsService;
 import com.seenears.voicerecords.repository.VoiceRecordRepository;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -23,7 +25,10 @@ import java.time.ZoneId;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 @Service
 public class DailyRecordsService {
@@ -38,17 +43,20 @@ public class DailyRecordsService {
     private final DailyRecordRepository dailyRecordRepository;
     private final QuestionsService questionsService;
     private final VoiceRecordRepository voiceRecordRepository;
+    private final LetterRepository letterRepository;
 
     public DailyRecordsService(
             AppUserRepository appUserRepository,
             DailyRecordRepository dailyRecordRepository,
             QuestionsService questionsService,
-            VoiceRecordRepository voiceRecordRepository
+            VoiceRecordRepository voiceRecordRepository,
+            LetterRepository letterRepository
     ) {
         this.appUserRepository = appUserRepository;
         this.dailyRecordRepository = dailyRecordRepository;
         this.questionsService = questionsService;
         this.voiceRecordRepository = voiceRecordRepository;
+        this.letterRepository = letterRepository;
     }
 
     @Transactional
@@ -102,7 +110,8 @@ public class DailyRecordsService {
         validateOwner(appUser, dailyRecord);
 
         boolean hasVoice = voiceRecordRepository.existsByDailyRecord(dailyRecord);
-        return DailyRecordDetailResponse.of(dailyRecord, hasVoice);
+        Letter letter = letterRepository.findByDailyRecordId(dailyRecordId).orElse(null);
+        return DailyRecordDetailResponse.of(dailyRecord, hasVoice, letter);
     }
 
     @Transactional(readOnly = true)
@@ -128,7 +137,26 @@ public class DailyRecordsService {
                 ? Collections.emptySet()
                 : voiceRecordRepository.findDailyRecordIdsByDailyRecordIn(dailyRecords);
 
-        return MonthlyDailyRecordsResponse.of(year, month, dailyRecords, voiceSubmittedDailyRecordIds);
+        Map<Long, Letter> lettersByDailyRecordId = dailyRecords.isEmpty()
+                ? Collections.emptyMap()
+                : letterRepository.findByDailyRecordIdIn(
+                                dailyRecords.stream()
+                                        .map(DailyRecord::getId)
+                                        .toList()
+                        )
+                        .stream()
+                        .collect(Collectors.toMap(
+                                letter -> letter.getDailyRecord().getId(),
+                                Function.identity()
+                        ));
+
+        return MonthlyDailyRecordsResponse.of(
+                year,
+                month,
+                dailyRecords,
+                voiceSubmittedDailyRecordIds,
+                lettersByDailyRecordId
+        );
     }
 
     private void validateYearMonth(int year, int month) {

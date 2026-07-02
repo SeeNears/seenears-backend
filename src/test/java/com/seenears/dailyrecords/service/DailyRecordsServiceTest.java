@@ -13,6 +13,9 @@ import com.seenears.dailyrecords.repository.DailyRecordRepository;
 import com.seenears.global.domain.MoodType;
 import com.seenears.global.exception.BusinessException;
 import com.seenears.global.exception.ErrorCode;
+import com.seenears.letters.domain.Letter;
+import com.seenears.letters.domain.LetterStatus;
+import com.seenears.letters.repository.LetterRepository;
 import com.seenears.questions.service.QuestionsService;
 import com.seenears.voicerecords.repository.VoiceRecordRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -24,11 +27,13 @@ import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.anyCollection;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
 import static org.mockito.Mockito.never;
@@ -52,6 +57,9 @@ class DailyRecordsServiceTest {
     @Mock
     private VoiceRecordRepository voiceRecordRepository;
 
+    @Mock
+    private LetterRepository letterRepository;
+
     private DailyRecordsService dailyRecordsService;
 
     @BeforeEach
@@ -60,7 +68,8 @@ class DailyRecordsServiceTest {
                 appUserRepository,
                 dailyRecordRepository,
                 questionsService,
-                voiceRecordRepository
+                voiceRecordRepository,
+                letterRepository
         );
     }
 
@@ -71,6 +80,7 @@ class DailyRecordsServiceTest {
         given(appUserRepository.findById(USER_ID)).willReturn(Optional.of(appUser));
         given(dailyRecordRepository.findById(DAILY_RECORD_ID)).willReturn(Optional.of(dailyRecord));
         given(voiceRecordRepository.existsByDailyRecord(dailyRecord)).willReturn(true);
+        given(letterRepository.findByDailyRecordId(DAILY_RECORD_ID)).willReturn(Optional.empty());
 
         DailyRecordDetailResponse response = dailyRecordsService.getDailyRecordDetail(
                 String.valueOf(USER_ID),
@@ -87,12 +97,36 @@ class DailyRecordsServiceTest {
     }
 
     @Test
+    void getDailyRecordDetailReturnsLetterWhenLetterExists() {
+        AppUser appUser = appUser(USER_ID);
+        DailyRecord dailyRecord = dailyRecord(DAILY_RECORD_ID, appUser);
+        Letter letter = generatedLetter(20L, dailyRecord, "오늘도 잘 견뎌낸 하루였어요.", true);
+        given(appUserRepository.findById(USER_ID)).willReturn(Optional.of(appUser));
+        given(dailyRecordRepository.findById(DAILY_RECORD_ID)).willReturn(Optional.of(dailyRecord));
+        given(voiceRecordRepository.existsByDailyRecord(dailyRecord)).willReturn(true);
+        given(letterRepository.findByDailyRecordId(DAILY_RECORD_ID)).willReturn(Optional.of(letter));
+
+        DailyRecordDetailResponse response = dailyRecordsService.getDailyRecordDetail(
+                String.valueOf(USER_ID),
+                DAILY_RECORD_ID
+        );
+
+        assertThat(response.letter()).isNotNull();
+        assertThat(response.letter().letterId()).isEqualTo(20L);
+        assertThat(response.letter().status()).isEqualTo(LetterStatus.GENERATED.name());
+        assertThat(response.letter().content()).isEqualTo("오늘도 잘 견뎌낸 하루였어요.");
+        assertThat(response.letter().isRead()).isTrue();
+        assertThat(response.letter().fallbackUsed()).isFalse();
+    }
+
+    @Test
     void getDailyRecordDetailReturnsHasVoiceFalseWhenVoiceRecordDoesNotExist() {
         AppUser appUser = appUser(USER_ID);
         DailyRecord dailyRecord = dailyRecord(DAILY_RECORD_ID, appUser);
         given(appUserRepository.findById(USER_ID)).willReturn(Optional.of(appUser));
         given(dailyRecordRepository.findById(DAILY_RECORD_ID)).willReturn(Optional.of(dailyRecord));
         given(voiceRecordRepository.existsByDailyRecord(dailyRecord)).willReturn(false);
+        given(letterRepository.findByDailyRecordId(DAILY_RECORD_ID)).willReturn(Optional.empty());
 
         DailyRecordDetailResponse response = dailyRecordsService.getDailyRecordDetail(
                 String.valueOf(USER_ID),
@@ -100,6 +134,7 @@ class DailyRecordsServiceTest {
         );
 
         assertThat(response.hasVoice()).isFalse();
+        assertThat(response.letter()).isNull();
     }
 
     @Test
@@ -132,13 +167,14 @@ class DailyRecordsServiceTest {
                 .isInstanceOf(BusinessException.class)
                 .extracting("errorCode")
                 .isEqualTo(ErrorCode.DAILY_RECORD_ACCESS_DENIED);
+        then(letterRepository).should(never()).findByDailyRecordId(DAILY_RECORD_ID);
     }
 
     @Test
     void dailyRecordDetailResponseDoesNotExposeVoiceDetailFields() throws JsonProcessingException {
         AppUser appUser = appUser(USER_ID);
         DailyRecord dailyRecord = dailyRecord(DAILY_RECORD_ID, appUser);
-        DailyRecordDetailResponse response = DailyRecordDetailResponse.of(dailyRecord, true);
+        DailyRecordDetailResponse response = DailyRecordDetailResponse.of(dailyRecord, true, null);
 
         String json = new ObjectMapper()
                 .findAndRegisterModules()
@@ -157,6 +193,7 @@ class DailyRecordsServiceTest {
         DailyRecord firstRecord = dailyRecord(DAILY_RECORD_ID, appUser, LocalDate.of(2026, 7, 1));
         DailyRecord secondRecord = dailyRecord(DAILY_RECORD_ID + 1, appUser, LocalDate.of(2026, 7, 3));
         secondRecord.submitVoice();
+        Letter secondLetter = generatedLetter(21L, secondRecord, "좋은 기억을 오래 간직해 보세요.", false);
         List<DailyRecord> dailyRecords = List.of(firstRecord, secondRecord);
         given(appUserRepository.findById(USER_ID)).willReturn(Optional.of(appUser));
         given(dailyRecordRepository.findByAppUserAndRecordDateGreaterThanEqualAndRecordDateLessThanOrderByRecordDateAsc(
@@ -165,6 +202,8 @@ class DailyRecordsServiceTest {
                 LocalDate.of(2026, 8, 1)
         )).willReturn(dailyRecords);
         given(voiceRecordRepository.findDailyRecordIdsByDailyRecordIn(dailyRecords)).willReturn(Set.of(secondRecord.getId()));
+        given(letterRepository.findByDailyRecordIdIn(List.of(firstRecord.getId(), secondRecord.getId())))
+                .willReturn(List.of(secondLetter));
 
         MonthlyDailyRecordsResponse response = dailyRecordsService.getMonthlyDailyRecords(
                 String.valueOf(USER_ID),
@@ -184,6 +223,13 @@ class DailyRecordsServiceTest {
         assertThat(response.records().get(0).letterId()).isNull();
         assertThat(response.records().get(0).letterStatus()).isNull();
         assertThat(response.records().get(0).letterRead()).isNull();
+        assertThat(response.records().get(1).hasLetter()).isTrue();
+        assertThat(response.records().get(1).letterId()).isEqualTo(21L);
+        assertThat(response.records().get(1).letterStatus()).isEqualTo(LetterStatus.GENERATED.name());
+        assertThat(response.records().get(1).letterRead()).isFalse();
+        then(letterRepository).should().findByDailyRecordIdIn(List.of(firstRecord.getId(), secondRecord.getId()));
+        then(letterRepository).should(never()).findByDailyRecordId(firstRecord.getId());
+        then(letterRepository).should(never()).findByDailyRecordId(secondRecord.getId());
     }
 
     @Test
@@ -206,6 +252,7 @@ class DailyRecordsServiceTest {
         assertThat(response.month()).isEqualTo(7);
         assertThat(response.records()).isEmpty();
         then(voiceRecordRepository).should(never()).findDailyRecordIdsByDailyRecordIn(List.of());
+        then(letterRepository).should(never()).findByDailyRecordIdIn(anyCollection());
     }
 
     @Test
@@ -248,7 +295,8 @@ class DailyRecordsServiceTest {
                 2026,
                 7,
                 List.of(dailyRecord),
-                Set.of()
+                Set.of(),
+                Map.of()
         );
 
         String json = new ObjectMapper()
@@ -285,5 +333,13 @@ class DailyRecordsServiceTest {
         );
         ReflectionTestUtils.setField(dailyRecord, "id", id);
         return dailyRecord;
+    }
+
+    private Letter generatedLetter(Long id, DailyRecord dailyRecord, String content, boolean read) {
+        Letter letter = Letter.create(dailyRecord);
+        ReflectionTestUtils.setField(letter, "id", id);
+        letter.saveGenerated(content, false);
+        ReflectionTestUtils.setField(letter, "read", read);
+        return letter;
     }
 }

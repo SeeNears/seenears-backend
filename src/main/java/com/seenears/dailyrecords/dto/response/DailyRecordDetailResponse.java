@@ -3,6 +3,7 @@ package com.seenears.dailyrecords.dto.response;
 import com.seenears.dailyrecords.domain.DailyRecord;
 import com.seenears.dailyrecords.domain.DailyRecordStatus;
 import com.seenears.global.domain.MoodType;
+import com.seenears.letters.domain.Letter;
 
 import java.time.LocalDate;
 
@@ -16,7 +17,7 @@ public record DailyRecordDetailResponse(
         LetterResponse letter
 ) {
 
-    public static DailyRecordDetailResponse of(DailyRecord dailyRecord, boolean hasVoice) {
+    public static DailyRecordDetailResponse of(DailyRecord dailyRecord, boolean hasVoice, Letter letter) {
         return new DailyRecordDetailResponse(
                 dailyRecord.getId(),
                 dailyRecord.getRecordDate(),
@@ -24,7 +25,7 @@ public record DailyRecordDetailResponse(
                 dailyRecord.getQuestionText(),
                 dailyRecord.getStatus(),
                 hasVoice,
-                null
+                LetterResponse.from(letter)
         );
     }
 
@@ -35,5 +36,19 @@ public record DailyRecordDetailResponse(
             boolean isRead,
             boolean fallbackUsed
     ) {
+
+        public static LetterResponse from(Letter letter) {
+            if (letter == null) {
+                return null;
+            }
+
+            return new LetterResponse(
+                    letter.getId(),
+                    letter.getStatus().name(),
+                    letter.getContent(),
+                    letter.isRead(),
+                    letter.isFallbackUsed()
+            );
+        }
     }
 }
