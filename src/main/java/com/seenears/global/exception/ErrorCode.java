@@ -33,7 +33,17 @@ public enum ErrorCode {
     VOICE_RECORD_NOT_FOUND(HttpStatus.NOT_FOUND, "VOICE_RECORD_006", "음성 기록을 찾을 수 없습니다."),
     VOICE_RECORD_STT_ALREADY_COMPLETED(HttpStatus.CONFLICT, "VOICE_RECORD_007", "이미 STT 처리가 완료된 음성 기록입니다."),
     AI_ANALYSIS_STT_NOT_COMPLETED(HttpStatus.CONFLICT, "AI_ANALYSIS_001", "STT 처리가 완료되지 않아 AI 분석 결과를 저장할 수 없습니다."),
-    AI_ANALYSIS_ALREADY_COMPLETED(HttpStatus.CONFLICT, "AI_ANALYSIS_002", "이미 AI 분석이 완료된 하루 기록입니다.");
+    AI_ANALYSIS_ALREADY_COMPLETED(HttpStatus.CONFLICT, "AI_ANALYSIS_002", "이미 AI 분석이 완료된 하루 기록입니다."),
+    QUESTION_GENERATION_AI_ANALYSIS_NOT_COMPLETED(
+            HttpStatus.CONFLICT,
+            "QUESTION_GENERATION_001",
+            "AI 분석이 완료되지 않아 다음 질문을 저장할 수 없습니다."
+    ),
+    QUESTION_GENERATION_ALREADY_COMPLETED(
+            HttpStatus.CONFLICT,
+            "QUESTION_GENERATION_002",
+            "이미 다음 질문 생성이 완료된 하루 기록입니다."
+    );
 
     private final HttpStatus httpStatus;
     private final String code;

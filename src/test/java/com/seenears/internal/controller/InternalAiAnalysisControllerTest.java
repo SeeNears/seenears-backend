@@ -2,10 +2,13 @@ package com.seenears.internal.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.seenears.aianalysis.domain.AiAnalysisStatus;
+import com.seenears.dailyrecords.domain.QuestionGenerationStatus;
 import com.seenears.global.security.SecurityConfig;
 import com.seenears.global.security.jwt.JwtTokenProvider;
 import com.seenears.internal.dto.request.SaveAiAnalysisResultRequest;
+import com.seenears.internal.dto.request.SaveNextQuestionsRequest;
 import com.seenears.internal.dto.response.SaveAiAnalysisResultResponse;
+import com.seenears.internal.dto.response.SaveNextQuestionsResponse;
 import com.seenears.internal.service.InternalAiAnalysisService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -101,11 +104,65 @@ class InternalAiAnalysisControllerTest {
                 .andExpect(jsonPath("$.code").value("COMMON_001"));
     }
 
+    @Test
+    void saveNextQuestionsFailsWhenApiKeyIsMissing() throws Exception {
+        mockMvc.perform(patch("/api/internal/daily-records/{dailyRecordId}/next-questions", 10L)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(successNextQuestionsRequest())))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.code").value("AUTH_001"));
+
+        verifyNoInteractions(internalAiAnalysisService);
+    }
+
+    @Test
+    void saveNextQuestionsSucceedsWithValidApiKey() throws Exception {
+        given(internalAiAnalysisService.saveNextQuestions(eq(10L), any(SaveNextQuestionsRequest.class)))
+                .willReturn(new SaveNextQuestionsResponse(
+                        10L,
+                        QuestionGenerationStatus.SUCCESS,
+                        LocalDateTime.of(2026, 7, 2, 21, 40)
+                ));
+
+        mockMvc.perform(patch("/api/internal/daily-records/{dailyRecordId}/next-questions", 10L)
+                        .header(INTERNAL_API_KEY_HEADER, "test-internal-key")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(successNextQuestionsRequest())))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.message").value("다음 질문이 저장되었습니다."))
+                .andExpect(jsonPath("$.data.dailyRecordId").value(10))
+                .andExpect(jsonPath("$.data.questionGenerationStatus").value("SUCCESS"))
+                .andExpect(jsonPath("$.data.questionGeneratedAt").value("2026-07-02T21:40:00"));
+
+        verify(internalAiAnalysisService).saveNextQuestions(eq(10L), any(SaveNextQuestionsRequest.class));
+    }
+
+    @Test
+    void saveNextQuestionsFailsWhenStatusIsMissing() throws Exception {
+        mockMvc.perform(patch("/api/internal/daily-records/{dailyRecordId}/next-questions", 10L)
+                        .header(INTERNAL_API_KEY_HEADER, "test-internal-key")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"nextQuestionSunny\":\"맑음 질문\",\"nextQuestionCloudy\":\"흐림 질문\",\"nextQuestionRainy\":\"비 질문\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("COMMON_001"));
+    }
+
     private SaveAiAnalysisResultRequest completedRequest() {
         return new SaveAiAnalysisResultRequest(
                 AiAnalysisStatus.COMPLETED,
                 "산책을 통해 긍정적인 감정을 느낀 하루였습니다.",
                 List.of("산책", "기분 좋음", "평온함")
+        );
+    }
+
+    private SaveNextQuestionsRequest successNextQuestionsRequest() {
+        return new SaveNextQuestionsRequest(
+                QuestionGenerationStatus.SUCCESS,
+                "맑음 질문",
+                "흐림 질문",
+                "비 질문"
         );
     }
 }
