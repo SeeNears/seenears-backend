@@ -165,4 +165,13 @@ public class Letter {
         this.fallbackUsed = false;
         this.generatedAt = LocalDateTime.now(SERVICE_ZONE);
     }
+
+    public void markAsRead(LocalDateTime now) {
+        if (this.read) {
+            return;
+        }
+
+        this.read = true;
+        this.readAt = now;
+    }
 }
