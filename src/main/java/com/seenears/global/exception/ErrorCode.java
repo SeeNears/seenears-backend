@@ -49,7 +49,10 @@ public enum ErrorCode {
     LETTER_ALREADY_GENERATED(HttpStatus.CONFLICT, "LETTER_002", "이미 생성 완료된 편지입니다."),
     LETTER_VOICE_RECORD_MISMATCH(HttpStatus.CONFLICT, "LETTER_003", "편지와 음성 기록이 일치하지 않습니다."),
     LETTER_ACCESS_DENIED(HttpStatus.FORBIDDEN, "LETTER_004", "다른 사용자의 편지입니다."),
-    LETTER_STATUS_NOT_ALLOWED(HttpStatus.CONFLICT, "LETTER_005", "현재 상태에서는 편지를 읽음 처리할 수 없습니다.");
+    LETTER_STATUS_NOT_ALLOWED(HttpStatus.CONFLICT, "LETTER_005", "현재 상태에서는 편지를 읽음 처리할 수 없습니다."),
+    NOTIFICATION_NOT_FOUND(HttpStatus.NOT_FOUND, "NOTIFICATION_001", "알림을 찾을 수 없습니다."),
+    INVALID_NOTIFICATION_STATUS(HttpStatus.BAD_REQUEST, "NOTIFICATION_002", "알림 상태가 올바르지 않습니다."),
+    NOTIFICATION_LETTER_NOT_READY(HttpStatus.CONFLICT, "NOTIFICATION_003", "편지가 아직 생성되지 않아 알림을 만들 수 없습니다.");
 
     private final HttpStatus httpStatus;
     private final String code;
