@@ -32,6 +32,7 @@ public enum ErrorCode {
     VOICE_RECORD_FILE_SAVE_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "VOICE_RECORD_005", "음성 파일 저장에 실패했습니다."),
     VOICE_RECORD_NOT_FOUND(HttpStatus.NOT_FOUND, "VOICE_RECORD_006", "음성 기록을 찾을 수 없습니다."),
     VOICE_RECORD_STT_ALREADY_COMPLETED(HttpStatus.CONFLICT, "VOICE_RECORD_007", "이미 STT 처리가 완료된 음성 기록입니다."),
+    PUSH_DEVICE_TOKEN_NOT_FOUND(HttpStatus.NOT_FOUND, "PUSH_DEVICE_TOKEN_001", "디바이스 토큰을 찾을 수 없습니다."),
     AI_ANALYSIS_STT_NOT_COMPLETED(HttpStatus.CONFLICT, "AI_ANALYSIS_001", "STT 처리가 완료되지 않아 AI 분석 결과를 저장할 수 없습니다."),
     AI_ANALYSIS_ALREADY_COMPLETED(HttpStatus.CONFLICT, "AI_ANALYSIS_002", "이미 AI 분석이 완료된 하루 기록입니다."),
     QUESTION_GENERATION_AI_ANALYSIS_NOT_COMPLETED(

@@ -1,8 +1,11 @@
 package com.seenears.push.controller;
 
+import com.seenears.global.exception.BusinessException;
+import com.seenears.global.exception.ErrorCode;
 import com.seenears.global.security.SecurityConfig;
 import com.seenears.global.security.jwt.JwtTokenProvider;
 import com.seenears.push.domain.DeviceType;
+import com.seenears.push.dto.request.DeactivatePushDeviceTokenRequest;
 import com.seenears.push.dto.request.RegisterPushDeviceTokenRequest;
 import com.seenears.push.dto.response.RegisterPushDeviceTokenResponse;
 import com.seenears.push.service.PushDeviceTokensService;
@@ -21,10 +24,13 @@ import org.springframework.test.web.servlet.MockMvc;
 import java.time.LocalDateTime;
 import java.util.List;
 
+import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.willThrow;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -159,5 +165,124 @@ class PushDeviceTokensControllerTest {
                 .andExpect(jsonPath("$.code").value("COMMON_001"));
 
         verifyNoInteractions(pushDeviceTokensService);
+    }
+
+    @Test
+    void deactivateDeviceTokenReturnsSuccessResponse() throws Exception {
+        DeactivatePushDeviceTokenRequest expectedRequest =
+                new DeactivatePushDeviceTokenRequest("fcm-device-token-value");
+
+        mockMvc.perform(delete("/api/push/device-tokens")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + ACCESS_TOKEN)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "deviceToken": "fcm-device-token-value"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.message").value("디바이스 토큰이 비활성화되었습니다."))
+                .andExpect(jsonPath("$.data").value(nullValue()));
+
+        verify(pushDeviceTokensService).deactivateDeviceToken("1", expectedRequest);
+    }
+
+    @Test
+    void deactivateDeviceTokenFailsWhenAuthorizationHeaderIsMissing() throws Exception {
+        mockMvc.perform(delete("/api/push/device-tokens")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "deviceToken": "fcm-device-token-value"
+                                }
+                                """))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.code").value("AUTH_001"));
+
+        verifyNoInteractions(pushDeviceTokensService);
+    }
+
+    @Test
+    void deactivateDeviceTokenFailsWhenAccessTokenIsInvalid() throws Exception {
+        mockMvc.perform(delete("/api/push/device-tokens")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer invalid-token")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "deviceToken": "fcm-device-token-value"
+                                }
+                                """))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.code").value("AUTH_001"));
+
+        verifyNoInteractions(pushDeviceTokensService);
+    }
+
+    @Test
+    void deactivateDeviceTokenFailsWhenDeviceTokenIsBlank() throws Exception {
+        mockMvc.perform(delete("/api/push/device-tokens")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + ACCESS_TOKEN)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "deviceToken": " "
+                                }
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.code").value("COMMON_001"));
+
+        verifyNoInteractions(pushDeviceTokensService);
+    }
+
+    @Test
+    void deactivateDeviceTokenReturnsErrorResponseWhenDeviceTokenDoesNotExist() throws Exception {
+        DeactivatePushDeviceTokenRequest expectedRequest =
+                new DeactivatePushDeviceTokenRequest("missing-token");
+        willThrow(new BusinessException(ErrorCode.PUSH_DEVICE_TOKEN_NOT_FOUND))
+                .given(pushDeviceTokensService)
+                .deactivateDeviceToken("1", expectedRequest);
+
+        mockMvc.perform(delete("/api/push/device-tokens")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + ACCESS_TOKEN)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "deviceToken": "missing-token"
+                                }
+                                """))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.code").value("PUSH_DEVICE_TOKEN_001"))
+                .andExpect(jsonPath("$.message").value("디바이스 토큰을 찾을 수 없습니다."));
+
+        verify(pushDeviceTokensService).deactivateDeviceToken("1", expectedRequest);
+    }
+
+    @Test
+    void deactivateDeviceTokenReturnsErrorResponseWhenDeviceTokenBelongsToOtherUser() throws Exception {
+        DeactivatePushDeviceTokenRequest expectedRequest =
+                new DeactivatePushDeviceTokenRequest("other-user-token");
+        willThrow(new BusinessException(ErrorCode.PUSH_DEVICE_TOKEN_NOT_FOUND))
+                .given(pushDeviceTokensService)
+                .deactivateDeviceToken("1", expectedRequest);
+
+        mockMvc.perform(delete("/api/push/device-tokens")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + ACCESS_TOKEN)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "deviceToken": "other-user-token"
+                                }
+                                """))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.code").value("PUSH_DEVICE_TOKEN_001"))
+                .andExpect(jsonPath("$.message").value("디바이스 토큰을 찾을 수 없습니다."));
+
+        verify(pushDeviceTokensService).deactivateDeviceToken("1", expectedRequest);
     }
 }
