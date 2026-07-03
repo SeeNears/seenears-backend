@@ -1,6 +1,7 @@
 package com.seenears.global.exception;
 
 import com.seenears.global.response.ErrorResponse;
+import jakarta.validation.ConstraintViolationException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
@@ -59,7 +60,8 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler({
             MissingServletRequestParameterException.class,
-            MethodArgumentTypeMismatchException.class
+            MethodArgumentTypeMismatchException.class,
+            ConstraintViolationException.class
     })
     public ResponseEntity<ErrorResponse> handleRequestParameterException(Exception exception) {
         ErrorCode errorCode = ErrorCode.INVALID_INPUT_VALUE;
