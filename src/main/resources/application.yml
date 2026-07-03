@@ -30,3 +30,10 @@ app:
   internal-api-key: ${INTERNAL_API_KEY:seenears-local-internal-api-key}
   upload:
     voice-record-dir: ${VOICE_RECORD_UPLOAD_DIR:uploads/voice-records}
+  push:
+    fcm:
+      enabled: ${FCM_ENABLED:false}
+      scheduler-enabled: ${FCM_SCHEDULER_ENABLED:false}
+      batch-size: ${FCM_BATCH_SIZE:20}
+      fixed-delay-ms: ${FCM_FIXED_DELAY_MS:60000}
+      service-account-path: ${FIREBASE_SERVICE_ACCOUNT_PATH:}

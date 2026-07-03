@@ -8,6 +8,11 @@ out/
 .env
 .DS_Store
 
+# Firebase service account keys
+*firebase*service-account*.json
+*firebase-adminsdk*.json
+serviceAccountKey.json
+
 # Local docs
 docs-local/
 http/
