@@ -8,12 +8,14 @@ import com.seenears.global.exception.ErrorCode;
 import com.seenears.letters.domain.Letter;
 import com.seenears.letters.domain.LetterStatus;
 import com.seenears.letters.dto.response.ReadLetterResponse;
+import com.seenears.letters.dto.response.TodayLetterResponse;
 import com.seenears.letters.repository.LetterRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Clock;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.Set;
@@ -47,6 +49,19 @@ public class LettersService {
         this.appUserRepository = appUserRepository;
         this.letterRepository = letterRepository;
         this.clock = clock;
+    }
+
+    @Transactional(readOnly = true)
+    public TodayLetterResponse getTodayLetter(String authenticatedUserId) {
+        AppUser appUser = getAuthenticatedUser(authenticatedUserId);
+        LocalDate today = LocalDate.now(clock);
+        Letter letter = letterRepository.findByAppUserAndLetterDate(appUser, today)
+                .orElseThrow(() -> new BusinessException(
+                        ErrorCode.LETTER_NOT_FOUND,
+                        "오늘 도착한 편지가 없습니다."
+                ));
+
+        return TodayLetterResponse.from(letter);
     }
 
     @Transactional

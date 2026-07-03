@@ -1,5 +1,7 @@
 package com.seenears.letters.service;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.seenears.auth.domain.AppUser;
 import com.seenears.auth.domain.UserStatus;
 import com.seenears.auth.repository.AppUserRepository;
@@ -9,7 +11,9 @@ import com.seenears.global.domain.MoodType;
 import com.seenears.global.exception.BusinessException;
 import com.seenears.global.exception.ErrorCode;
 import com.seenears.letters.domain.Letter;
+import com.seenears.letters.domain.LetterStatus;
 import com.seenears.letters.dto.response.ReadLetterResponse;
+import com.seenears.letters.dto.response.TodayLetterResponse;
 import com.seenears.letters.repository.LetterRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -28,6 +32,8 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.then;
+import static org.mockito.Mockito.never;
 
 @ExtendWith(MockitoExtension.class)
 class LettersServiceTest {
@@ -51,6 +57,110 @@ class LettersServiceTest {
     void setUp() {
         Clock clock = Clock.fixed(Instant.parse("2026-06-23T10:00:00Z"), SERVICE_ZONE);
         lettersService = new LettersService(appUserRepository, letterRepository, clock);
+    }
+
+    @Test
+    void getTodayLetterQueriesAuthenticatedUsersLetterByTodayLetterDate() {
+        AppUser appUser = appUser(USER_ID);
+        Letter letter = generatedLetter(appUser);
+        given(appUserRepository.findById(USER_ID)).willReturn(Optional.of(appUser));
+        given(letterRepository.findByAppUserAndLetterDate(appUser, LocalDate.of(2026, 6, 23)))
+                .willReturn(Optional.of(letter));
+
+        TodayLetterResponse response = lettersService.getTodayLetter(String.valueOf(USER_ID));
+
+        assertThat(response.letterId()).isEqualTo(LETTER_ID);
+        assertThat(response.dailyRecordId()).isEqualTo(DAILY_RECORD_ID);
+        assertThat(response.recordDate()).isEqualTo(LocalDate.of(2026, 6, 22));
+        assertThat(response.letterDate()).isEqualTo(LocalDate.of(2026, 6, 23));
+        assertThat(response.status()).isEqualTo(LetterStatus.GENERATED);
+        assertThat(response.content()).isEqualTo("편지 본문");
+        assertThat(response.isRead()).isFalse();
+        assertThat(response.readAt()).isNull();
+        assertThat(response.fallbackUsed()).isFalse();
+        assertThat(response.generatedAt()).isNotNull();
+        then(letterRepository).should().findByAppUserAndLetterDate(appUser, LocalDate.of(2026, 6, 23));
+    }
+
+    @Test
+    void getTodayLetterThrowsNotFoundWhenTodayLetterDoesNotExist() {
+        AppUser appUser = appUser(USER_ID);
+        given(appUserRepository.findById(USER_ID)).willReturn(Optional.of(appUser));
+        given(letterRepository.findByAppUserAndLetterDate(appUser, LocalDate.of(2026, 6, 23)))
+                .willReturn(Optional.empty());
+
+        assertThatThrownBy(() -> lettersService.getTodayLetter(String.valueOf(USER_ID)))
+                .isInstanceOf(BusinessException.class)
+                .hasMessage("오늘 도착한 편지가 없습니다.")
+                .extracting("errorCode")
+                .isEqualTo(ErrorCode.LETTER_NOT_FOUND);
+    }
+
+    @Test
+    void getTodayLetterDoesNotChangeReadFieldsOrStatus() {
+        AppUser appUser = appUser(USER_ID);
+        Letter letter = generatedLetter(appUser);
+        given(appUserRepository.findById(USER_ID)).willReturn(Optional.of(appUser));
+        given(letterRepository.findByAppUserAndLetterDate(appUser, LocalDate.of(2026, 6, 23)))
+                .willReturn(Optional.of(letter));
+
+        lettersService.getTodayLetter(String.valueOf(USER_ID));
+
+        assertThat(letter.getStatus()).isEqualTo(LetterStatus.GENERATED);
+        assertThat(letter.isRead()).isFalse();
+        assertThat(letter.getReadAt()).isNull();
+        then(letterRepository).should(never()).findById(LETTER_ID);
+    }
+
+    @Test
+    void getTodayLetterAllowsPendingContentAndGeneratedAtNull() {
+        AppUser appUser = appUser(USER_ID);
+        Letter letter = pendingLetter(appUser);
+        given(appUserRepository.findById(USER_ID)).willReturn(Optional.of(appUser));
+        given(letterRepository.findByAppUserAndLetterDate(appUser, LocalDate.of(2026, 6, 23)))
+                .willReturn(Optional.of(letter));
+
+        TodayLetterResponse response = lettersService.getTodayLetter(String.valueOf(USER_ID));
+
+        assertThat(response.status()).isEqualTo(LetterStatus.PENDING);
+        assertThat(response.content()).isNull();
+        assertThat(response.generatedAt()).isNull();
+        assertThat(response.isRead()).isFalse();
+        assertThat(response.readAt()).isNull();
+    }
+
+    @Test
+    void getTodayLetterReturnsFallbackUsedTrueForFallbackGeneratedLetter() {
+        AppUser appUser = appUser(USER_ID);
+        Letter letter = fallbackGeneratedLetter(appUser);
+        given(appUserRepository.findById(USER_ID)).willReturn(Optional.of(appUser));
+        given(letterRepository.findByAppUserAndLetterDate(appUser, LocalDate.of(2026, 6, 23)))
+                .willReturn(Optional.of(letter));
+
+        TodayLetterResponse response = lettersService.getTodayLetter(String.valueOf(USER_ID));
+
+        assertThat(response.status()).isEqualTo(LetterStatus.FALLBACK_GENERATED);
+        assertThat(response.content()).isEqualTo("편지 본문");
+        assertThat(response.fallbackUsed()).isTrue();
+    }
+
+    @Test
+    void todayLetterResponseDoesNotExposeVoiceRecordId() throws JsonProcessingException {
+        AppUser appUser = appUser(USER_ID);
+        TodayLetterResponse response = TodayLetterResponse.from(generatedLetter(appUser));
+
+        String json = new ObjectMapper()
+                .findAndRegisterModules()
+                .writeValueAsString(response);
+
+        assertThat(json).contains("\"letterId\":2");
+        assertThat(json).contains("\"dailyRecordId\":10");
+        assertThat(json).doesNotContain("voiceRecordId");
+        assertThat(json).doesNotContain("audioUrl");
+        assertThat(json).doesNotContain("sttText");
+        assertThat(json).doesNotContain("voiceRecord");
+        assertThat(json).doesNotContain("aiAnalysis");
+        assertThat(json).doesNotContain("questionUsed");
     }
 
     @Test
