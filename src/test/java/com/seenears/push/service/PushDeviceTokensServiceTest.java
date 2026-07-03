@@ -7,6 +7,7 @@ import com.seenears.global.exception.BusinessException;
 import com.seenears.global.exception.ErrorCode;
 import com.seenears.push.domain.DeviceType;
 import com.seenears.push.domain.PushDeviceToken;
+import com.seenears.push.dto.request.DeactivatePushDeviceTokenRequest;
 import com.seenears.push.dto.request.RegisterPushDeviceTokenRequest;
 import com.seenears.push.dto.response.RegisterPushDeviceTokenResponse;
 import com.seenears.push.repository.PushDeviceTokenRepository;
@@ -172,8 +173,129 @@ class PushDeviceTokensServiceTest {
         verify(pushDeviceTokenRepository, never()).saveAndFlush(any(PushDeviceToken.class));
     }
 
+    @Test
+    void deactivateDeviceTokenDeactivatesActiveToken() {
+        AppUser appUser = appUser(USER_ID);
+        PushDeviceToken activeToken = pushDeviceToken(appUser, "target-token", DeviceType.ANDROID);
+        given(appUserRepository.findById(USER_ID)).willReturn(Optional.of(appUser));
+        given(pushDeviceTokenRepository.findByDeviceTokenAndAppUserId("target-token", USER_ID))
+                .willReturn(Optional.of(activeToken));
+
+        pushDeviceTokensService.deactivateDeviceToken(
+                String.valueOf(USER_ID),
+                new DeactivatePushDeviceTokenRequest("target-token")
+        );
+
+        assertThat(activeToken.isActive()).isFalse();
+    }
+
+    @Test
+    void deactivateDeviceTokenSucceedsWhenTokenIsAlreadyInactive() {
+        AppUser appUser = appUser(USER_ID);
+        PushDeviceToken inactiveToken = pushDeviceToken(appUser, "target-token", DeviceType.IOS);
+        inactiveToken.deactivate();
+        given(appUserRepository.findById(USER_ID)).willReturn(Optional.of(appUser));
+        given(pushDeviceTokenRepository.findByDeviceTokenAndAppUserId("target-token", USER_ID))
+                .willReturn(Optional.of(inactiveToken));
+
+        pushDeviceTokensService.deactivateDeviceToken(
+                String.valueOf(USER_ID),
+                new DeactivatePushDeviceTokenRequest("target-token")
+        );
+
+        assertThat(inactiveToken.isActive()).isFalse();
+    }
+
+    @Test
+    void deactivateDeviceTokenThrowsNotFoundWhenTokenDoesNotExist() {
+        AppUser appUser = appUser(USER_ID);
+        given(appUserRepository.findById(USER_ID)).willReturn(Optional.of(appUser));
+        given(pushDeviceTokenRepository.findByDeviceTokenAndAppUserId("missing-token", USER_ID))
+                .willReturn(Optional.empty());
+
+        assertThatThrownBy(() -> pushDeviceTokensService.deactivateDeviceToken(
+                String.valueOf(USER_ID),
+                new DeactivatePushDeviceTokenRequest("missing-token")
+        ))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode")
+                .isEqualTo(ErrorCode.PUSH_DEVICE_TOKEN_NOT_FOUND);
+    }
+
+    @Test
+    void deactivateDeviceTokenThrowsNotFoundWhenTokenBelongsToOtherUser() {
+        AppUser appUser = appUser(USER_ID);
+        given(appUserRepository.findById(USER_ID)).willReturn(Optional.of(appUser));
+        given(pushDeviceTokenRepository.findByDeviceTokenAndAppUserId("other-user-token", USER_ID))
+                .willReturn(Optional.empty());
+
+        assertThatThrownBy(() -> pushDeviceTokensService.deactivateDeviceToken(
+                String.valueOf(USER_ID),
+                new DeactivatePushDeviceTokenRequest("other-user-token")
+        ))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode")
+                .isEqualTo(ErrorCode.PUSH_DEVICE_TOKEN_NOT_FOUND);
+
+        verify(pushDeviceTokenRepository, never()).findByDeviceToken("other-user-token");
+    }
+
+    @Test
+    void deactivateDeviceTokenDoesNotDeactivateOtherActiveTokensOfSameUser() {
+        AppUser appUser = appUser(USER_ID);
+        PushDeviceToken otherActiveToken = pushDeviceToken(appUser, "other-token", DeviceType.IOS);
+        PushDeviceToken targetToken = pushDeviceToken(appUser, "target-token", DeviceType.ANDROID);
+        given(appUserRepository.findById(USER_ID)).willReturn(Optional.of(appUser));
+        given(pushDeviceTokenRepository.findByDeviceTokenAndAppUserId("target-token", USER_ID))
+                .willReturn(Optional.of(targetToken));
+
+        pushDeviceTokensService.deactivateDeviceToken(
+                String.valueOf(USER_ID),
+                new DeactivatePushDeviceTokenRequest("target-token")
+        );
+
+        assertThat(targetToken.isActive()).isFalse();
+        assertThat(otherActiveToken.isActive()).isTrue();
+    }
+
+    @Test
+    void deactivateDeviceTokenThrowsWithdrawRequestedWhenUserIsWithdrawRequested() {
+        AppUser appUser = appUser(USER_ID, UserStatus.WITHDRAW_REQUESTED);
+        given(appUserRepository.findById(USER_ID)).willReturn(Optional.of(appUser));
+
+        assertThatThrownBy(() -> pushDeviceTokensService.deactivateDeviceToken(
+                String.valueOf(USER_ID),
+                new DeactivatePushDeviceTokenRequest("target-token")
+        ))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode")
+                .isEqualTo(ErrorCode.USER_WITHDRAW_REQUESTED);
+
+        verify(pushDeviceTokenRepository, never()).findByDeviceTokenAndAppUserId("target-token", USER_ID);
+    }
+
+    @Test
+    void deactivateDeviceTokenThrowsUserNotFoundWhenUserIsDeleted() {
+        AppUser appUser = appUser(USER_ID, UserStatus.DELETED);
+        given(appUserRepository.findById(USER_ID)).willReturn(Optional.of(appUser));
+
+        assertThatThrownBy(() -> pushDeviceTokensService.deactivateDeviceToken(
+                String.valueOf(USER_ID),
+                new DeactivatePushDeviceTokenRequest("target-token")
+        ))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode")
+                .isEqualTo(ErrorCode.USER_NOT_FOUND);
+
+        verify(pushDeviceTokenRepository, never()).findByDeviceTokenAndAppUserId("target-token", USER_ID);
+    }
+
     private AppUser appUser(Long id) {
-        AppUser appUser = new AppUser("테스터", "01000000000", UserStatus.ACTIVE);
+        return appUser(id, UserStatus.ACTIVE);
+    }
+
+    private AppUser appUser(Long id, UserStatus status) {
+        AppUser appUser = new AppUser("테스터", "01000000000", status);
         ReflectionTestUtils.setField(appUser, "id", id);
         return appUser;
     }

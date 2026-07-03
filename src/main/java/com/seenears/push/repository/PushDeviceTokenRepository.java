@@ -8,4 +8,6 @@ import java.util.Optional;
 public interface PushDeviceTokenRepository extends JpaRepository<PushDeviceToken, Long> {
 
     Optional<PushDeviceToken> findByDeviceToken(String deviceToken);
+
+    Optional<PushDeviceToken> findByDeviceTokenAndAppUserId(String deviceToken, Long appUserId);
 }

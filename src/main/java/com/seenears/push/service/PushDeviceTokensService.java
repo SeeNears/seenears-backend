@@ -6,6 +6,7 @@ import com.seenears.auth.repository.AppUserRepository;
 import com.seenears.global.exception.BusinessException;
 import com.seenears.global.exception.ErrorCode;
 import com.seenears.push.domain.PushDeviceToken;
+import com.seenears.push.dto.request.DeactivatePushDeviceTokenRequest;
 import com.seenears.push.dto.request.RegisterPushDeviceTokenRequest;
 import com.seenears.push.dto.response.RegisterPushDeviceTokenResponse;
 import com.seenears.push.repository.PushDeviceTokenRepository;
@@ -42,6 +43,19 @@ public class PushDeviceTokensService {
         PushDeviceToken savedToken = pushDeviceTokenRepository.saveAndFlush(pushDeviceToken);
 
         return RegisterPushDeviceTokenResponse.from(savedToken);
+    }
+
+    @Transactional
+    public void deactivateDeviceToken(
+            String authenticatedUserId,
+            DeactivatePushDeviceTokenRequest request
+    ) {
+        AppUser appUser = getAuthenticatedUser(authenticatedUserId);
+        PushDeviceToken pushDeviceToken = pushDeviceTokenRepository
+                .findByDeviceTokenAndAppUserId(request.deviceToken(), appUser.getId())
+                .orElseThrow(() -> new BusinessException(ErrorCode.PUSH_DEVICE_TOKEN_NOT_FOUND));
+
+        pushDeviceToken.deactivate();
     }
 
     private AppUser getAuthenticatedUser(String authenticatedUserId) {
